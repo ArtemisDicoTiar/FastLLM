@@ -16,7 +16,7 @@ Therefore, in this project, we aim to infuse the target model distribution to th
 
 ## Possible Solutions
 1. Target model generated pseudo dataset
-  2. The target model generated output is worked as a pseudo dataset for the drafter model to train.
+    * The target model generated output is worked as a pseudo dataset for the drafter model to train.
 3. GAN
 
 ## Target Task / Dataset
