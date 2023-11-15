@@ -10,7 +10,8 @@ SNU - Natural Language Processing Project
 Large Language Models (LLMs) are struggling on generation speed as it requires auto-regressively generate token by token.
 To speed up the generation, condensed models of target model (original LLM) can be applied as drafter.
 This drafter model output can be used as initial generation.
-This drafter model generation can be accepted by the system or can be replaced by the LLM generation.
+The draft generation can be accepted by the system or can be replaced by the LLM generation.
+
 At this point, it is crucial to make drafter model generation to be accept in high rate so that the LLM will less involve on the generation, which decreases the generation time.
 Therefore, in this project, we aim to infuse the target model distribution to the drafters to increase the possibility of drafter model generation acceptance rate.
 
