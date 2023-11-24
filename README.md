@@ -3,6 +3,9 @@ SNU - Natural Language Processing, Final Project
 
 2023 - Autumn
 
+# TL;DR
+[Presentation Link](https://docs.google.com/presentation/d/1aVl-7LN0Ryjw0jq_RnF0OuLRLqW1EHfgyeMqEQdj1Hw/edit?usp=drive_link)
+
 ## Members
 종윤, 재석, 원표, 재진, Romain
 
