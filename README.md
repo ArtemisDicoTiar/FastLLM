@@ -1,4 +1,4 @@
-# FastLLM
+# FastLLM: LLM needs forgotten Small LMs
 SNU - Natural Language Processing, Final Project
 
 2023 - Autumn
