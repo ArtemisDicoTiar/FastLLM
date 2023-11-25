@@ -21,30 +21,21 @@ Therefore, in this project, we aim to infuse the target model distribution to th
 ## Possible Solutions
 1. Target model generated pseudo dataset
     * The target model generated output is worked as a pseudo dataset for the drafter model to train.
-3. GAN
+3. Knowledge Distillation
 
 ## Target Task / Dataset
-Summarization, CNN/DailyMail
+Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
 
 ## Experiment details
 ### Models
 * Target model
-  * T5-large
-  * (Llama2-7B, this is the case when we have enough time)
-* Drafter model
+  * FLAN-T5-XL (finetuned model: [bbhattar/flan_t5_xl_cnn_dailymail](https://huggingface.co/bbhattar/flan_t5_xl_cnn_dailymail))
+* Forgotten small models for Drafter
   * N-gram models (N: 1 ~ 5)
     * (model size: N/A)
-  * BERT - MLM
-    * This model is endocer only model
-    * distil-base (65.8M)
-    * base (110M)
-    * large (340M)
-  * T5
-    * This model is encoder-decoder model
-    * small (60.5M)
-    * base (223M)
-    * (large) (738M)
-    * (xl) (3B)
+  * Convolutional Neural Network (model size: ...)
+  * Long-Short Term Memory (model size: ...)
+  * [T5-small](https://huggingface.co/google/t5-v1_1-small) (approx. 60M parameters)
 
 
 ## References
