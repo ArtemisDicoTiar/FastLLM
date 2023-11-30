@@ -38,6 +38,3 @@ class Model(nn.Module):
 
         return y_t1
 
-
-if __name__ == '__main__':
-
