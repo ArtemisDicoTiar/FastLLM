@@ -81,6 +81,7 @@ if __name__ == '__main__':
         [learning_rate_cooldown_step_start]
     )
 
+    # ============= Train ============= #
     for epoch in range(n_epochs):
         for record in tqdm(dataset):
             record_id = record["id"]
@@ -90,6 +91,8 @@ if __name__ == '__main__':
             # shape: (batch_size, max_token_length)
             input_tokens = tokenizer(input_string, return_tensors="pt")
             max_token_length = input_tokens["input_ids"].shape[1]
+
+            # TODO: distillation implementation
 
             for infer_idx in range(1, max_token_length):
                 current_step_input_tokens = {
