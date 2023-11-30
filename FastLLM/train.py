@@ -7,8 +7,10 @@ Ref: https://arxiv.org/pdf/2310.08461.pdf
 import torch
 from datasets import load_dataset
 from torch.optim import AdamW
+from torch.optim.lr_scheduler import SequentialLR, CosineAnnealingLR
 from tqdm.rich import tqdm
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_schedule_with_warmup, \
+    get_cosine_schedule_with_warmup, Adafactor
 
 from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION
 from FastLLM.models.base import Model
@@ -32,9 +34,6 @@ if __name__ == '__main__':
     learning_rate_warmup_steps = 5_000
     learning_rate_cooldown_step_start = 150_000
     learning_rate_cooldown_step_end = 300_000
-
-    warmup_scheduler = "warmuplinear"
-    cooldown_scheduler = "cosine"
 
     dropout = 0.0
     n_epochs = 1
@@ -61,13 +60,27 @@ if __name__ == '__main__':
     loss_fn = distillation_loss.fns[distil_method]
 
     # ============= OPTIMIZER ============= #
-    optimizer: AdamW = torch.optim.AdamW(
-        params=draft_model.parameters(),
+    # https://arxiv.org/pdf/2310.08461.pdf
+    optimizer = Adafactor(
+        draft_model.parameters(),
         lr=learning_rate,
+        relative_step=False,
+    )
+    warmup_scheduler = get_constant_schedule_with_warmup(
+        optimizer, num_warmup_steps=learning_rate_warmup_steps
+    )
+    cooldown_scheduler = CosineAnnealingLR(
+        optimizer,
+        T_max=learning_rate_cooldown_step_end - learning_rate_cooldown_step_start,
+        eta_min=0.1 * learning_rate,
+        last_epoch=-1
+    )
+    scheduler = SequentialLR(
+        optimizer,
+        [warmup_scheduler, cooldown_scheduler],
+        [learning_rate_cooldown_step_start]
     )
 
-    training_steps = 0
-    global_step = 0
     for epoch in range(n_epochs):
         for record in tqdm(dataset):
             record_id = record["id"]
@@ -109,5 +122,3 @@ if __name__ == '__main__':
             optimizer.step()
             # scheduler.step()
             optimizer.zero_grad()
-            training_steps += 1
-        global_step += 1
