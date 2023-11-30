@@ -3,6 +3,7 @@ This code runs distillation on the draft model.
 Ref: https://arxiv.org/pdf/2310.08461.pdf
 
 """
+from datetime import datetime
 
 import torch
 from datasets import load_dataset
@@ -17,6 +18,16 @@ from FastLLM.models.base import Model
 from FastLLM.utils import distillation_loss
 
 if __name__ == '__main__':
+    # ============= Experiment NAME ============= #
+    drafter_model_name = "example"
+
+    # ============= PATH ============= #
+    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    model_save_path = f"./{drafter_model_name}-drafter-{current_time}.pt"
+
+    # ============= SEED ============= #
+    torch.manual_seed(42)
+
     # ============= PARAMETERs ============= #
     device = 0
 
@@ -55,6 +66,8 @@ if __name__ == '__main__':
     target_model.eval()
 
     draft_model: Model = ...  # device=device
+    draft_model.to(f"cuda:{device}")
+    draft_model.train()
 
     # ============= LOSS FUNCTION (Distillation) ============= #
     loss_fn = distillation_loss.fns[distil_method]
@@ -125,3 +138,9 @@ if __name__ == '__main__':
             optimizer.step()
             # scheduler.step()
             optimizer.zero_grad()
+
+    # save draft model
+    torch.save(draft_model.state_dict(), model_save_path)
+
+
+

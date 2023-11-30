@@ -3,22 +3,15 @@ from torch import nn, Tensor
 
 
 class Model(nn.Module):
-    def __init__(self, ckpt_path: str = None, device: str = None):
-        super().__init__()
-        if ckpt_path is not None:
-            self.load_state_dict(
-                torch.load(ckpt_path, map_location=device)
-            )
-        else:
-            # define model architecture here
-            # this is example
-            self.model = nn.Sequential(
-                nn.Linear(10, 10),
-                nn.ReLU(),
-                nn.Linear(10, 10),
-                nn.ReLU(),
-                nn.Linear(10, 1),
-            )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.model = nn.Sequential(
+            nn.Linear(10, 10),
+            nn.ReLU(),
+            nn.Linear(10, 10),
+            nn.ReLU(),
+            nn.Linear(10, 1),
+        )
 
     def forward(self, input_tokens: dict[str, Tensor], label_tokens: dict[str, Tensor]):
         """
@@ -44,3 +37,7 @@ class Model(nn.Module):
         next_token_logits = self.forward_pass(input_ids, label_ids)
 
         return y_t1
+
+
+if __name__ == '__main__':
+

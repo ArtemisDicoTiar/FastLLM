@@ -37,7 +37,10 @@ if __name__ == '__main__':
     target_model.to(f"cuda:{device}")
     target_model.eval()
 
-    draft_model: Model = torch.load(ckpt_path, map_location=f"cuda:{device}")
+    draft_model: Model = Model()
+    draft_model.load_state_dict(torch.load(ckpt_path))
+    draft_model.to(f"cuda:{device}")
+    draft_model.eval()
 
     # ============= Evaluation ============= #
     for record in tqdm(dataset):
