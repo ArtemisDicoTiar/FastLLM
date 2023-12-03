@@ -6,8 +6,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, LRScheduler, ChainedSche
 
 from matplotlib import pyplot as plt
 
-import math
-
 from transformers import AdamW, get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup, Adafactor
 
 

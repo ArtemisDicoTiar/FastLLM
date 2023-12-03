@@ -1,13 +1,9 @@
 """
-This code runs distillation on the draft model.
-Ref: https://arxiv.org/pdf/2310.08461.pdf
-
+This code evaluates the model performance on the validation set.
 """
 
 import torch
 from datasets import load_dataset
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import SequentialLR, CosineAnnealingLR
 from tqdm.rich import tqdm
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_schedule_with_warmup, \
     get_cosine_schedule_with_warmup, Adafactor
