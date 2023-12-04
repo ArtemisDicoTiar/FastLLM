@@ -1,40 +1,61 @@
 import torch
 from torch import nn, Tensor
+from typing import Dict, Tuple, Any
 
 
 class Model(nn.Module):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+            self,
+            vocab_size: int,
+            pad_token_id: int = 0,
+            *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
+        hidden_size = kwargs.get("hidden_size", 10)
+        self.embeddings = nn.Embedding(32128, hidden_size)
         self.model = nn.Sequential(
-            nn.Linear(10, 10),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(10, 10),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(10, 1),
+            nn.Linear(hidden_size, hidden_size),
         )
+        self.logit2vocab = nn.Linear(hidden_size, vocab_size)
 
-    def forward(self, input_tokens: dict[str, Tensor], label_tokens: dict[str, Tensor]):
+    def forward(self, input_tokens: Dict[str, Tensor]) -> Tuple[Tensor, Tensor]:
         """
-        This function is used for model training
-        :param input_ids: input token ids
-        :param label_ids: label token ids
-        :return: next token logits
+        This function is used for model training.
+        :param input_tokens: [batch_size, max_token_length]
+        :param label_tokens: [batch_size, max_token_length]
+        :return: [batch_size, vocab_size]
         """
         # define forward pass here
-        next_token_logits = self.forward_pass(input_ids, label_ids)
 
-        return next_token_logits
+        input_ids = input_tokens["input_ids"]
+        # shape: [batch_size, max_token_length, hidden_size]
+        embeddings = self.embeddings(input_ids)
+        # shape: [batch_size, max_token_length, hidden_size]
+        hidden_states = self.model(embeddings)
+        # shape: [batch_size, max_token_length, vocab_size]
+        logits = self.logit2vocab(hidden_states)
+        probs = torch.softmax(logits, dim=-1)
 
-    def generate(self, input_tokens: dict[str, Tensor]):
+        return logits[:, -1], probs[:, -1]
+
+    def generate(self, input_tokens: Dict[str, Tensor]) -> Tuple[Tensor, Tensor]:
         """
-        This function forwards the seq2seq model.
+        This function is used for evaluation.
         :param input_tokens:
-        :param label_tokens:
         :return:
         """
         input_ids = input_tokens["input_ids"]
-        # define generation logic
-        next_token_logits = self.forward_pass(input_ids, label_ids)
+        # shape: [batch_size, max_token_length, hidden_size]
+        embeddings = self.embeddings(input_ids)
+        # shape: [batch_size, max_token_length, hidden_size]
+        hidden_states = self.model(embeddings)
+        # shape: [batch_size, max_token_length, vocab_size]
+        logits = self.logit2vocab(hidden_states)
+        probs = torch.softmax(logits, dim=-1)
 
-        return y_t1
+        return logits[:, -1], probs[:, -1]
 

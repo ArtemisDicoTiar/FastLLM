@@ -10,12 +10,12 @@ from datasets import load_dataset
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import SequentialLR, CosineAnnealingLR
 from tqdm.rich import tqdm
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_schedule_with_warmup, \
-    get_cosine_schedule_with_warmup, Adafactor
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_schedule_with_warmup, Adafactor
 
 from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION
 from FastLLM.models.base import Model
 from FastLLM.utils import distillation_loss
+
 
 if __name__ == '__main__':
     # ============= Experiment NAME ============= #
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     # ============= PARAMETERs ============= #
     device = 0
 
-    distil_method = NotImplemented
+    distil_method = "Seq_KD"
 
     # both should be in [0, 1]
     fixed_data_fraction = 0.1
@@ -51,6 +51,7 @@ if __name__ == '__main__':
 
     # ============= DATASET ============= #
     dataset = load_dataset(DATASET_NAME, DATASET_VERSION, split="train")
+    dataset = dataset.map(function=lambda batch: batch, batched=True, batch_size=batch_size)
 
     # ============= TOKENIZER ============= #
     # this tokenizer is used for both the draft and target models
@@ -65,7 +66,10 @@ if __name__ == '__main__':
     target_model.to(f"cuda:{device}")
     target_model.eval()
 
-    draft_model: Model = ...  # device=device
+    draft_model: Model = Model(
+        vocab_size=target_model.config.vocab_size,
+        pad_token_id=tokenizer.pad_token_id
+    )
     draft_model.to(f"cuda:{device}")
     draft_model.train()
 
@@ -95,42 +99,66 @@ if __name__ == '__main__':
     )
 
     # ============= Train ============= #
+
     for epoch in range(n_epochs):
-        for record in tqdm(dataset):
-            record_id = record["id"]
-            input_string = record["article"]
-            label_string = record["highlights"]
+        for batch_index in tqdm(range(0, len(dataset), batch_size)):
+            batch_start = batch_index
+            batch_end = batch_index + batch_size
+            record_id = dataset[batch_start: batch_end]["id"]
+            input_string = dataset[batch_start: batch_end]["article"]
+            label_string = dataset[batch_start: batch_end]["highlights"]
 
             # shape: (batch_size, max_token_length)
-            input_tokens = tokenizer(input_string, return_tensors="pt")
+            input_tokens = tokenizer(
+                input_string,
+                return_tensors="pt",
+                truncation=True,
+                padding=True,
+            ).to(f"cuda:{device}")
+            label_tokens = tokenizer(
+                label_string,
+                return_tensors="pt",
+                truncation=True,
+                padding=True,
+            ).to(f"cuda:{device}")
             max_token_length = input_tokens["input_ids"].shape[1]
 
             # TODO: distillation implementation
 
             for infer_idx in range(1, max_token_length):
-                current_step_input_tokens = {
-                    k: v[:, :infer_idx] for k, v in input_tokens.items()
+                current_step_label_tokens = {
+                    k: v[:, :infer_idx-1] for k, v in label_tokens.items()
+                }
+                total_input_ids = {
+                    k: torch.cat([input_tokens[k], current_step_label_tokens[k]], dim=-1)
+                    for k, _ in input_tokens.items()
                 }
 
-                next_step_draft_tokens = draft_model.generate(
-                    input_tokens=current_step_input_tokens,
+                next_token_draft_logit, next_token_draft_probs = draft_model(
+                    input_tokens=total_input_ids,
                 )
 
                 with torch.no_grad():
                     target_tokens = target_model.generate(
-                        input_ids=current_step_input_tokens["input_ids"],
-                        attention_mask=current_step_input_tokens["attention_mask"],
+                        input_ids=total_input_ids["input_ids"],
+                        attention_mask=total_input_ids["attention_mask"],
+                        max_new_tokens=1,
+                        output_scores=True,
+                        return_dict_in_generate=True,
                         # TODO: check the hyperparameters
-                        # max_length=512,
                         # num_beams=4,
                         # early_stopping=True,
                         # no_repeat_ngram_size=3,
                         # num_return_sequences=1,
                     )
+                    next_token_target_tokens = target_tokens["sequences"][:, -1]
+                    next_token_target_logits = target_tokens["scores"][0]
+                    next_token_target_probs = torch.softmax(next_token_target_logits, dim=-1)
 
+                # this is example for Seq_KD
                 loss = loss_fn(
-                    next_step_draft_tokens,
-                    target_tokens,
+                    next_token_draft_logit.log_softmax(dim=-1),
+                    next_token_target_probs,
                 )
 
                 loss.backward()
@@ -141,6 +169,3 @@ if __name__ == '__main__':
 
     # save draft model
     torch.save(draft_model.state_dict(), model_save_path)
-
-
-
