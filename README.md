@@ -37,6 +37,20 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
   * Long-Short Term Memory (model size: ...)
   * [T5-small](https://huggingface.co/google/t5-v1_1-small) (approx. 60M parameters)
 
+### Prerequisite
+
+- Install python 3.8 or higher
+- Install python packages
+  ```sh
+  $ pip install -r requirements.txt
+  ```
+
+### How to run
+
+- Train
+  ```sh
+  $ python ./train.py
+  ```
 
 ## References
 ~~~
