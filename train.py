@@ -6,24 +6,46 @@ Ref: https://arxiv.org/pdf/2310.08461.pdf
 from datetime import datetime
 
 import torch
+import logging
+
 from datasets import load_dataset
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import SequentialLR, CosineAnnealingLR
 from tqdm.rich import tqdm
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_schedule_with_warmup, Adafactor
 
-from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION
+from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION, T5_DRAFTER_MODEL_NAME
 from FastLLM.models.base import Model
 from FastLLM.utils import distillation_loss
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--drafter', choices=['t5small', 'lstm', 'cnn'], required=True)
+parser.add_argument('--exp_name', required=True, type=str)
+parser.add_argument('--loss', default=1, type=float)
+parser.add_argument('--kd_loss', default=1, type=float)
+parser.add_argument('--kd_temp', default=8, type=float)
+parser.add_argument('--distil_method', default='Seq_KD', choices=['Seq_KD', 'Supervised_KD', 'Imit_KD', 'f_Distill', 'on_policy_GKD'])
+
 
 if __name__ == '__main__':
+    args = parser.parse_args()
+
     # ============= Experiment NAME ============= #
-    drafter_model_name = "example"
+    drafter_model_name = f"{args.drafter}_{args.exp_name}"
 
     # ============= PATH ============= #
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_save_path = f"./{drafter_model_name}-drafter-{current_time}.pt"
+
+    # ============= Logger ============= #
+    logging.basicConfig(
+        level=logging.INFO, 
+        format='%(asctime)s [%(levelname)s] - %(message)s',
+        filename=f'{model_save_path}.log')  # pass explicit filename here 
+    logger = logging.getLogger()  # get the root logger
+
 
     # ============= SEED ============= #
     torch.manual_seed(42)
@@ -31,20 +53,20 @@ if __name__ == '__main__':
     # ============= PARAMETERs ============= #
     device = 0
 
-    distil_method = "Seq_KD"
+    distil_method = args.distil_method
 
     # both should be in [0, 1]
     fixed_data_fraction = 0.1
     drafter_data_fraction = 0.1
 
     # https://arxiv.org/pdf/2310.08461.pdf
-    training_steps = 300_000
-    batch_size = 32
+    training_steps = 35000
+    batch_size = 8
 
     learning_rate = 3e-4
     learning_rate_warmup_steps = 5_000
-    learning_rate_cooldown_step_start = 150_000
-    learning_rate_cooldown_step_end = 300_000
+    learning_rate_cooldown_step_start = 10000
+    learning_rate_cooldown_step_end = 30000
 
     dropout = 0.0
     n_epochs = 1
@@ -66,12 +88,14 @@ if __name__ == '__main__':
     target_model.to(f"cuda:{device}")
     target_model.eval()
 
-    draft_model: Model = Model(
-        vocab_size=target_model.config.vocab_size,
-        pad_token_id=tokenizer.pad_token_id
-    )
-    draft_model.to(f"cuda:{device}")
-    draft_model.train()
+    if args.drafter == 't5small':
+        draft_model = AutoModelForSeq2SeqLM.from_pretrained(
+            T5_DRAFTER_MODEL_NAME
+        )
+        draft_model.to(f"cuda:{device}")
+        draft_model.train()
+    else:
+        raise NotImplementedError()
 
     # ============= LOSS FUNCTION (Distillation) ============= #
     loss_fn = distillation_loss.fns[distil_method]
@@ -99,8 +123,9 @@ if __name__ == '__main__':
     )
 
     # ============= Train ============= #
+    num_step = 0
 
-    for epoch in range(n_epochs):
+    while num_step < training_steps:
         for batch_index in tqdm(range(0, len(dataset), batch_size)):
             batch_start = batch_index
             batch_end = batch_index + batch_size
@@ -123,49 +148,47 @@ if __name__ == '__main__':
             ).to(f"cuda:{device}")
             max_token_length = input_tokens["input_ids"].shape[1]
 
-            # TODO: distillation implementation
-
-            for infer_idx in range(1, max_token_length):
-                current_step_label_tokens = {
-                    k: v[:, :infer_idx-1] for k, v in label_tokens.items()
-                }
-                total_input_ids = {
-                    k: torch.cat([input_tokens[k], current_step_label_tokens[k]], dim=-1)
-                    for k, _ in input_tokens.items()
-                }
-
-                next_token_draft_logit, next_token_draft_probs = draft_model(
-                    input_tokens=total_input_ids,
+            with torch.no_grad():
+                target_tokens = target_model.forward(
+                    input_ids=input_tokens['input_ids'], 
+                    attention_mask=input_tokens['attention_mask'],
+                    decoder_input_ids=label_tokens['input_ids'],
+                    decoder_attention_mask=label_tokens['attention_mask']
                 )
+                target_model_logits = target_tokens.logits
+        
+            draft_tokens = draft_model.forward(
+                input_ids=input_tokens['input_ids'], 
+                attention_mask=input_tokens['attention_mask'],
+                decoder_input_ids=label_tokens['input_ids'],
+                decoder_attention_mask=label_tokens['attention_mask']
+            )
+            draft_model_logits = draft_tokens.logits
+            
+            draft_logits = draft_tokens.logits
+            target_logits = target_tokens.logits
+            label_ids = label_tokens['input_ids']
 
-                with torch.no_grad():
-                    target_tokens = target_model.generate(
-                        input_ids=total_input_ids["input_ids"],
-                        attention_mask=total_input_ids["attention_mask"],
-                        max_new_tokens=1,
-                        output_scores=True,
-                        return_dict_in_generate=True,
-                        # TODO: check the hyperparameters
-                        # num_beams=4,
-                        # early_stopping=True,
-                        # no_repeat_ngram_size=3,
-                        # num_return_sequences=1,
-                    )
-                    next_token_target_tokens = target_tokens["sequences"][:, -1]
-                    next_token_target_logits = target_tokens["scores"][0]
-                    next_token_target_probs = torch.softmax(next_token_target_logits, dim=-1)
+            num_classes = draft_logits.shape[-1]
 
-                # this is example for Seq_KD
-                loss = loss_fn(
-                    next_token_draft_logit.log_softmax(dim=-1),
-                    next_token_target_probs,
-                )
+            loss = torch.nn.CrossEntropyLoss(reduction='none')(draft_logits.view(-1, num_classes), label_ids.view(-1))
+            loss = args.loss * loss.view_as(label_ids)[
+                label_tokens['attention_mask']
+            ].mean()
 
-                loss.backward()
+            kd_loss = loss_fn(draft_logits, target_logits, temperature=args.kd_temp)
+            kd_loss = kd_loss.sum(dim=-1)
+            kd_loss = args.kd_loss *  kd_loss[label_tokens['attention_mask']].mean()
 
-            optimizer.step()
-            # scheduler.step()
+            final_loss =  loss + kd_loss
             optimizer.zero_grad()
+            final_loss.backward()
+            optimizer.step()
+            scheduler.step()
 
-    # save draft model
-    torch.save(draft_model.state_dict(), model_save_path)
+            logger.info(f'Step {num_step}: loss {loss}, kd_loss: {kd_loss}')
+                        
+            num_step += 1
+            # save draft model for every 100 steps
+            if num_step % 100 == 0:
+                torch.save(draft_model.state_dict(), model_save_path)
