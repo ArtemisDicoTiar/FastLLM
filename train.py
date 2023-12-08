@@ -4,6 +4,7 @@ Ref: https://arxiv.org/pdf/2310.08461.pdf
 
 """
 from datetime import datetime
+import os
 
 import torch
 import logging
@@ -19,19 +20,24 @@ from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION, 
 from FastLLM.models.base import Model
 from FastLLM.models.lstm import LSTMTextSummarizationModel
 from FastLLM.models.cnn import CNNTextSummarizationModel
+from FastLLM.models.ngrams import NgramModel, prepare_pseudo_dataset
 
 from FastLLM.utils import distillation_loss
 
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--drafter', choices=['t5small', 'lstm', 'cnn'], required=True)
+parser.add_argument('--drafter', choices=['t5small', 'lstm', 'cnn', 'ngram'], required=True)
 parser.add_argument('--exp_name', required=True, type=str)
 parser.add_argument('--loss', default=1, type=float)
 parser.add_argument('--kd_loss', default=1, type=float)
 parser.add_argument('--kd_temp', default=8, type=float)
 parser.add_argument('--distil_method', default='Seq_KD', choices=['Seq_KD', 'Supervised_KD', 'Imit_KD', 'f_Distill', 'on_policy_GKD'])
-
+# ngram specific parameters
+parser.add_argument('--ngram_n', type=int, default=3)
+parser.add_argument('--ngram_source', choices=['pseudo', 'dataset'], default='pseudo')
+parser.add_argument('--pseudo_dataset', type=str, default="./FastLLM/pseudo_dataset/pdataset.txt")
+parser.add_argument('--ngram_save', type=str, default="./ckpt_ngram/")
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -84,7 +90,8 @@ if __name__ == '__main__':
 
     # ============= DATASET ============= #
     dataset = load_dataset(DATASET_NAME, DATASET_VERSION, split="train")
-    dataset = dataset.map(function=lambda batch: batch, batched=True, batch_size=batch_size)
+    if args.drafter != 'ngram':
+        dataset = dataset.map(function=lambda batch: batch, batched=True, batch_size=batch_size)
 
     # ============= TOKENIZER ============= #
     # this tokenizer is used for both the draft and target models
@@ -93,6 +100,26 @@ if __name__ == '__main__':
     )
 
     # ============= MODELs ============= #
+    if args.drafter == 'ngram':
+        if not os.path.exists(args.ngram_save):
+            os.mkdir(args.ngram_save)
+
+        draft_model = NgramModel(args.ngram_n, tokenizer.vocab_size, device=f"cuda:{device}")
+
+        if args.ngram_source == 'pseudo':
+            print("Fitting the ngram model on the pseudo dataset...")
+            pseudo_dataset = prepare_pseudo_dataset(args.pseudo_dataset, tokenizer)
+            draft_model.fit(pseudo_dataset)
+        elif args.ngram_source == 'dataset':
+            print("Fitting the ngram model on the dataset...")
+            # TODO: implement this
+        else:
+            print("You have to specify a source for the ngram model! Implemented: ['pseudo', 'dataset']")
+            quit(0)
+
+        draft_model.save(os.path.join(args.ngram_save, f"{args.exp_name}/"))
+        quit(0)
+
     target_model = AutoModelForSeq2SeqLM.from_pretrained(
         TARGET_MODEL_NAME,
     )

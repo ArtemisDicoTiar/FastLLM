@@ -36,7 +36,7 @@ class NgramModel(nn.Module):
         self.laplace_smoothing = laplace_smoothing
         self.fitted = False
         if resume is not None:
-            with open(os.path.join(resume, "{}.save".format(n)), "rb") as f:
+            with open(os.path.join(resume, "{}.ckpt".format(n)), "rb") as f:
                 self.ngram_counts, self.total_counts = pickle.load(f)
         else:
             self.ngram_counts = defaultdict(lambda: defaultdict(float))
@@ -155,7 +155,7 @@ class NgramModel(nn.Module):
         print("Saving {}-gram model...".format(self.n))
         if not os.path.exists(path):
             os.mkdir(path)
-        with open(os.path.join(path, "{}.save".format(self.n)), "wb") as f:
+        with open(os.path.join(path, "{}.ckpt".format(self.n)), "wb") as f:
             pickle.dump((self.ngram_counts, self.total_counts), f)
         if not self.is_unigram:
             self.backoff.save(path)
