@@ -58,16 +58,13 @@ class CNNTextSummarizationModel(nn.Module):
 
         # Apply CNN layer
         cnn_output = self.cnn(combined_embeddings)
-        print(cnn_output.shape)
 
         # Transpose back to (batch_size, sequence_length, embedding_dim)
         cnn_output = cnn_output.permute(0, 2, 1)
-        print(cnn_output.shape)
         cnn_output = cnn_output[:, :decoder_input_ids.shape[1]]
 
         # Pass the CNN output through the fully connected layer
         logits = self.fc(cnn_output)
-        print(logits.shape)
 
         # Apply softmax to get probabilities
         probabilities = softmax(logits, dim=-1)
