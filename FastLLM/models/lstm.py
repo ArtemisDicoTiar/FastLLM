@@ -1,4 +1,4 @@
-from torch import nn, Tensor, softmax
+from torch import nn, Tensor, softmax, cat
 from typing import Optional, Tuple, Union
 
 class LSTMTextSummarizationModel(nn.Module):
@@ -37,12 +37,24 @@ class LSTMTextSummarizationModel(nn.Module):
         return_dict: Optional[bool] = True,
         **kwargs
     ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
-        # Assuming input_ids and decoder_input_ids are used for input embeddings
+        # Apply the embedding layer to input_ids and decoder_input_ids
         input_embeddings = self.embedding(input_ids)
         decoder_embeddings = self.embedding(decoder_input_ids)
 
+        # Apply attention_mask to input_embeddings
+        if attention_mask is not None:
+            input_embeddings = input_embeddings * attention_mask.unsqueeze(-1)
+
+        # Apply decoder_attention_mask to decoder_embeddings
+        if decoder_attention_mask is not None:
+            decoder_embeddings = decoder_embeddings * decoder_attention_mask.unsqueeze(-1)
+
+        # Concatenate the embeddings along the sequence dimension
+        combined_embeddings = cat((input_embeddings, decoder_embeddings), dim=1)
+
         # Assuming input_ids and decoder_input_ids are sequences, pass them through the LSTM
-        lstm_output, _ = self.lstm(decoder_embeddings)
+        lstm_output, _ = self.lstm(combined_embeddings)
+        lstm_output = lstm_output[:, :decoder_input_ids.shape[1]]
 
         # Pass the LSTM output through the fully connected layer
         logits = self.fc(lstm_output)
