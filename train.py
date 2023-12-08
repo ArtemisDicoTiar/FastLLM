@@ -7,6 +7,7 @@ from datetime import datetime
 
 import torch
 import logging
+from logging.handlers import RotatingFileHandler
 
 from datasets import load_dataset
 from torch.optim import AdamW
@@ -16,6 +17,8 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_sche
 
 from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION, T5_DRAFTER_MODEL_NAME
 from FastLLM.models.base import Model
+from FastLLM.models.lstm import LSTMTextSummarizationModel
+
 from FastLLM.utils import distillation_loss
 
 import argparse
@@ -40,11 +43,18 @@ if __name__ == '__main__':
     model_save_path = f"./{drafter_model_name}-drafter-{current_time}.pt"
 
     # ============= Logger ============= #
-    logging.basicConfig(
-        level=logging.INFO, 
-        format='%(asctime)s [%(levelname)s] - %(message)s',
-        filename=f'{model_save_path}.log')  # pass explicit filename here 
-    logger = logging.getLogger()  # get the root logger
+    max_file_size_bytes = 10 * 1024 * 1024  # 10 MB
+    handler = RotatingFileHandler(f'{model_save_path}.log', maxBytes=max_file_size_bytes, backupCount=10)
+    handler.setLevel(logging.INFO)
+
+    # Set the log format
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] - %(message)s')
+    handler.setFormatter(formatter)
+
+    # Get the root logger and add the rotating file handler
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)  # Set the logger level to INFO
+    logger.addHandler(handler)
 
 
     # ============= SEED ============= #
@@ -92,10 +102,14 @@ if __name__ == '__main__':
         draft_model = AutoModelForSeq2SeqLM.from_pretrained(
             T5_DRAFTER_MODEL_NAME
         )
-        draft_model.to(f"cuda:{device}")
-        draft_model.train()
-    else:
-        raise NotImplementedError()
+    if args.drafter == 'lstm':
+        draft_model = LSTMTextSummarizationModel(
+            vocab_size=target_model.config.vocab_size,
+            pad_token_id=tokenizer.pad_token_id
+        )
+
+    draft_model.to(f"cuda:{device}")
+    draft_model.train()
 
     # ============= LOSS FUNCTION (Distillation) ============= #
     loss_fn = distillation_loss.fns[distil_method]
@@ -124,6 +138,8 @@ if __name__ == '__main__':
 
     # ============= Train ============= #
     num_step = 0
+
+    logger.info('Train Start!')
 
     while num_step < training_steps:
         for batch_index in tqdm(range(0, len(dataset), batch_size)):
@@ -163,12 +179,9 @@ if __name__ == '__main__':
                 decoder_input_ids=label_tokens['input_ids'],
                 decoder_attention_mask=label_tokens['attention_mask']
             )
-            draft_model_logits = draft_tokens.logits
-            
-            draft_logits = draft_tokens.logits
+            draft_logits = draft_tokens.logits if not isinstance(draft_tokens, dict) else draft_tokens['logits']
             target_logits = target_tokens.logits
             label_ids = label_tokens['input_ids']
-
             num_classes = draft_logits.shape[-1]
 
             loss = torch.nn.CrossEntropyLoss(reduction='none')(draft_logits.view(-1, num_classes), label_ids.view(-1))
