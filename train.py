@@ -18,6 +18,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_sche
 from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION, T5_DRAFTER_MODEL_NAME
 from FastLLM.models.base import Model
 from FastLLM.models.lstm import LSTMTextSummarizationModel
+from FastLLM.models.cnn import CNNTextSummarizationModel
 
 from FastLLM.utils import distillation_loss
 
@@ -104,6 +105,11 @@ if __name__ == '__main__':
         )
     if args.drafter == 'lstm':
         draft_model = LSTMTextSummarizationModel(
+            vocab_size=target_model.config.vocab_size,
+            pad_token_id=tokenizer.pad_token_id
+        )
+    if args.drafter == 'cnn':
+        draft_model = CNNTextSummarizationModel(
             vocab_size=target_model.config.vocab_size,
             pad_token_id=tokenizer.pad_token_id
         )
