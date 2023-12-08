@@ -10,15 +10,28 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_sche
 
 from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION
 from FastLLM.models.base import Model
+from FastLLM.models.ngrams import NgramModel, prepare_pseudo_dataset
 from FastLLM.utils import distillation_loss
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--drafter', choices=['t5small', 'lstm', 'cnn', 'ngram'], required=True)
+parser.add_argument('--exp_name', required=True, type=str)
+parser.add_argument('--ckpt_path', type=str)
+# ngram specific parameters
+parser.add_argument('--ngram_n', type=int, default=3)
+parser.add_argument('--pseudo_dataset', type=str, default="./FastLLM/pseudo_dataset/pdataset.txt")
+
+
 if __name__ == '__main__':
+    args = parser.parse_args()
+
     # ============= PARAMETERs ============= #
-    ckpt_path = ""
     device = 0
 
     # ============= DATASET ============= #
-    dataset = load_dataset(DATASET_NAME, DATASET_VERSION, split="train")
+    dataset = load_dataset(DATASET_NAME, DATASET_VERSION, split="test")
 
     # ============= TOKENIZER ============= #
     # this tokenizer is used for both the draft and target models
@@ -33,8 +46,20 @@ if __name__ == '__main__':
     target_model.to(f"cuda:{device}")
     target_model.eval()
 
-    draft_model: Model = Model()
-    draft_model.load_state_dict(torch.load(ckpt_path))
+    if args.drafter == 'ngram':
+        if args.ckpt_path:
+            print("Using a pretrained ngram model...")
+            draft_model = NgramModel(args.ngram_n, tokenizer.vocab_size, device=f"cuda:{device}", resume=args.ckpt_path)
+        else:
+            draft_model = NgramModel(args.ngram_n, tokenizer.vocab_size, device=f"cuda:{device}")
+            print("Fitting the ngram model on the pseudo dataset...")
+            pseudo_dataset = prepare_pseudo_dataset(args.pseudo_dataset, tokenizer)
+            draft_model.fit(pseudo_dataset)
+    else:
+        draft_model: Model = Model()
+        if args.ckpt_path:
+            draft_model.load_state_dict(torch.load(args.ckpt_path))
+
     draft_model.to(f"cuda:{device}")
     draft_model.eval()
 

@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch import Tensor
 from collections import defaultdict
 from typing import Tuple, Dict, List
-from tqdm import tqdm
+from tqdm.rich import tqdm
 import pickle
 import os
 
@@ -155,7 +155,7 @@ class NgramModel(nn.Module):
         print("Saving {}-gram model...".format(self.n))
         if not os.path.exists(path):
             os.mkdir(path)
-        with open(os.path.join(path, "{}.save".format(n)), "wb") as f:
+        with open(os.path.join(path, "{}.save".format(self.n)), "wb") as f:
             pickle.dump((self.ngram_counts, self.total_counts), f)
         if not self.is_unigram:
             self.backoff.save(path)
@@ -170,9 +170,8 @@ def prepare_pseudo_dataset(pseudo_dataset_dir: str, tokenizer) -> List[Dict[str,
     """
     print("Preparing data...")
     data = []
-    for file in os.listdir(pseudo_dataset_dir):
-        with open(os.path.join(pseudo_dataset_dir, file), "r") as f:
-            lines = f.readlines()
-            for line in tqdm(lines, total=len(lines), miniters=20, desc="Tokenizing pseudo-dataset"):
-                data.append(tokenizer(line, return_tensors="pt"))
+    with open(pseudo_dataset_dir, "r") as f:
+        lines = f.readlines()
+        for line in tqdm(lines, total=len(lines), miniters=20, desc="Tokenizing pseudo-dataset"):
+            data.append(tokenizer(line, return_tensors="pt"))
     return data
