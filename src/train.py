@@ -10,14 +10,19 @@ from datasets import load_dataset
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import SequentialLR, CosineAnnealingLR
 from tqdm.rich import tqdm
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_schedule_with_warmup, Adafactor
+from transformers import (
+    AutoTokenizer,
+    AutoModelForSeq2SeqLM,
+    get_constant_schedule_with_warmup,
+    Adafactor,
+)
 
 from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION
 from FastLLM.models.base import Model
 from FastLLM.utils import distillation_loss
 
 
-if __name__ == '__main__':
+def train():
     # ============= Experiment NAME ============= #
     drafter_model_name = "example"
 
@@ -51,7 +56,9 @@ if __name__ == '__main__':
 
     # ============= DATASET ============= #
     dataset = load_dataset(DATASET_NAME, DATASET_VERSION, split="train")
-    dataset = dataset.map(function=lambda batch: batch, batched=True, batch_size=batch_size)
+    dataset = dataset.map(
+        function=lambda batch: batch, batched=True, batch_size=batch_size
+    )
 
     # ============= TOKENIZER ============= #
     # this tokenizer is used for both the draft and target models
@@ -67,8 +74,7 @@ if __name__ == '__main__':
     target_model.eval()
 
     draft_model: Model = Model(
-        vocab_size=target_model.config.vocab_size,
-        pad_token_id=tokenizer.pad_token_id
+        vocab_size=target_model.config.vocab_size, pad_token_id=tokenizer.pad_token_id
     )
     draft_model.to(f"cuda:{device}")
     draft_model.train()
@@ -90,12 +96,12 @@ if __name__ == '__main__':
         optimizer,
         T_max=learning_rate_cooldown_step_end - learning_rate_cooldown_step_start,
         eta_min=0.1 * learning_rate,
-        last_epoch=-1
+        last_epoch=-1,
     )
     scheduler = SequentialLR(
         optimizer,
         [warmup_scheduler, cooldown_scheduler],
-        [learning_rate_cooldown_step_start]
+        [learning_rate_cooldown_step_start],
     )
 
     # ============= Train ============= #
@@ -104,9 +110,9 @@ if __name__ == '__main__':
         for batch_index in tqdm(range(0, len(dataset), batch_size)):
             batch_start = batch_index
             batch_end = batch_index + batch_size
-            record_id = dataset[batch_start: batch_end]["id"]
-            input_string = dataset[batch_start: batch_end]["article"]
-            label_string = dataset[batch_start: batch_end]["highlights"]
+            record_id = dataset[batch_start:batch_end]["id"]
+            input_string = dataset[batch_start:batch_end]["article"]
+            label_string = dataset[batch_start:batch_end]["highlights"]
 
             # shape: (batch_size, max_token_length)
             input_tokens = tokenizer(
@@ -127,10 +133,12 @@ if __name__ == '__main__':
 
             for infer_idx in range(1, max_token_length):
                 current_step_label_tokens = {
-                    k: v[:, :infer_idx-1] for k, v in label_tokens.items()
+                    k: v[:, : infer_idx - 1] for k, v in label_tokens.items()
                 }
                 total_input_ids = {
-                    k: torch.cat([input_tokens[k], current_step_label_tokens[k]], dim=-1)
+                    k: torch.cat(
+                        [input_tokens[k], current_step_label_tokens[k]], dim=-1
+                    )
                     for k, _ in input_tokens.items()
                 }
 
@@ -153,7 +161,9 @@ if __name__ == '__main__':
                     )
                     next_token_target_tokens = target_tokens["sequences"][:, -1]
                     next_token_target_logits = target_tokens["scores"][0]
-                    next_token_target_probs = torch.softmax(next_token_target_logits, dim=-1)
+                    next_token_target_probs = torch.softmax(
+                        next_token_target_logits, dim=-1
+                    )
 
                 # this is example for Seq_KD
                 loss = loss_fn(

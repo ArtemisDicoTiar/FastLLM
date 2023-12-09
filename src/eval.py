@@ -5,14 +5,20 @@ This code evaluates the model performance on the validation set.
 import torch
 from datasets import load_dataset
 from tqdm.rich import tqdm
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_constant_schedule_with_warmup, \
-    get_cosine_schedule_with_warmup, Adafactor
+from transformers import (
+    AutoTokenizer,
+    AutoModelForSeq2SeqLM,
+    get_constant_schedule_with_warmup,
+    get_cosine_schedule_with_warmup,
+    Adafactor,
+)
 
 from FastLLM.constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION
 from FastLLM.models.base import Model
 from FastLLM.utils import distillation_loss
 
-if __name__ == '__main__':
+
+def eval():
     # ============= PARAMETERs ============= #
     ckpt_path = ""
     device = 0
@@ -27,9 +33,7 @@ if __name__ == '__main__':
     )
 
     # ============= MODELs ============= #
-    target_model = AutoModelForSeq2SeqLM.from_pretrained(
-        TARGET_MODEL_NAME
-    )
+    target_model = AutoModelForSeq2SeqLM.from_pretrained(TARGET_MODEL_NAME)
     target_model.to(f"cuda:{device}")
     target_model.eval()
 
