@@ -8,12 +8,14 @@ class CNNTextSummarizationModel(nn.Module):
         pad_token_id: int = 0,
         embedding_dim: int = 300,
         cnn_out_channels: int = 128,
-        cnn_kernel_size: int = 3,
+        cnn_kernel_size: int = 3, 
         *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.embedding_dim = embedding_dim
         self.embedding = nn.Embedding(vocab_size, self.embedding_dim, padding_idx=pad_token_id)
+        self.prev_embedding = nn.Embedding(num_embeddings=1, embedding_dim=embedding_dim)
+        self.sep_embedding = nn.Embedding(num_embeddings=1, embedding_dim=embedding_dim)
 
         # Add CNN layer
         self.cnn = nn.Conv1d(
@@ -41,17 +43,11 @@ class CNNTextSummarizationModel(nn.Module):
         # Apply the embedding layer to input_ids and decoder_input_ids
         input_embeddings = self.embedding(input_ids)
         decoder_embeddings = self.embedding(decoder_input_ids)
-
-        # Apply attention_mask to input_embeddings
-        if attention_mask is not None:
-            input_embeddings = input_embeddings * attention_mask.unsqueeze(-1)
-
-        # Apply decoder_attention_mask to decoder_embeddings
-        if decoder_attention_mask is not None:
-            decoder_embeddings = decoder_embeddings * decoder_attention_mask.unsqueeze(-1)
+        prev_embedding = self.prev_embedding.weight.expand(input_embeddings.size(0), -1, -1)
+        sep_embedding = self.sep_embedding.weight.expand(input_embeddings.size(0), -1, -1)
 
         # Concatenate input_embeddings and decoder_embeddings along the sequence dimension
-        combined_embeddings = cat((input_embeddings, decoder_embeddings), dim=1)
+        combined_embeddings = cat((prev_embedding, input_embeddings, sep_embedding, decoder_embeddings), dim=1)
 
         # Transpose embeddings to fit the Conv1d input shape
         combined_embeddings = combined_embeddings.permute(0, 2, 1)
@@ -61,7 +57,7 @@ class CNNTextSummarizationModel(nn.Module):
 
         # Transpose back to (batch_size, sequence_length, embedding_dim)
         cnn_output = cnn_output.permute(0, 2, 1)
-        cnn_output = cnn_output[:, :decoder_input_ids.shape[1]]
+        cnn_output = cnn_output[:, input_ids.shape[1]+1:-1]
 
         # Pass the CNN output through the fully connected layer
         logits = self.fc(cnn_output)
