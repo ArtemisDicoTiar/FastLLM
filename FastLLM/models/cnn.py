@@ -14,7 +14,8 @@ class CNNTextSummarizationModel(nn.Module):
         super().__init__(*args, **kwargs)
         self.embedding_dim = embedding_dim
         self.embedding = nn.Embedding(vocab_size, self.embedding_dim, padding_idx=pad_token_id)
-        self.empty_embedding = nn.Embedding(num_embeddings=1, embedding_dim=embedding_dim)
+        self.prev_embedding = nn.Embedding(num_embeddings=1, embedding_dim=embedding_dim)
+        self.sep_embedding = nn.Embedding(num_embeddings=1, embedding_dim=embedding_dim)
 
         # Add CNN layer
         self.cnn = nn.Conv1d(
@@ -42,8 +43,8 @@ class CNNTextSummarizationModel(nn.Module):
         # Apply the embedding layer to input_ids and decoder_input_ids
         input_embeddings = self.embedding(input_ids)
         decoder_embeddings = self.embedding(decoder_input_ids)
-        prev_embedding = self.empty_embedding.weight.expand(input_embeddings.size(0), -1, -1)
-        sep_embedding = self.empty_embedding.weight.expand(input_embeddings.size(0), -1, -1)
+        prev_embedding = self.prev_embedding.weight.expand(input_embeddings.size(0), -1, -1)
+        sep_embedding = self.sep_embedding.weight.expand(input_embeddings.size(0), -1, -1)
 
         # Concatenate input_embeddings and decoder_embeddings along the sequence dimension
         combined_embeddings = cat((prev_embedding, input_embeddings, sep_embedding, decoder_embeddings), dim=1)
