@@ -56,6 +56,23 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
   $ python run.py eval
   ```
 
+### Model Checkpoints
+* N-grams:
+   * BaseLine: 
+   * Distilled: 
+* CNN
+   * BaseLine: 
+   * Distilled: 
+* LSTM
+   * BaseLine: 
+   * Distilled: `/data/jaeseok/data/nlp/models/lstm_lstm-drafter-2023-12-08_14-01-35.pt` 
+* T5-Small
+   * BaseLine: `/data/wppark/Workspace/FastLLM/t5small_baseline-drafter-2023-12-08_13-42-00.pt`
+   * Distilled: `/data/wppark/Workspace/FastLLM/t5small_kd50-drafter-2023-12-08_13-36-59.pt`
+
+
+
+
 ## References
 ~~~
 @article{nallapati2016abstractive,
