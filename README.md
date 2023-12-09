@@ -39,10 +39,14 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
 
 ### Prerequisite
 
-- Install python 3.8 or higher
+- Install Python 3.8 or higher
+- Install Pipenv
+  ```sh
+  $ pip install pipenv
+  ```
 - Install python packages
   ```sh
-  $ pip install -r requirements.txt
+  $ pipenv install
   ```
 
 ### How to run
