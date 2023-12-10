@@ -53,7 +53,9 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
   ```
 - Evaluation
   ```sh
-  $ python run.py eval
+  $ python run.py eval \
+      --ckpt_path <path to checkpoint> \
+      --device 0 \
   ```
 
 ### Model Checkpoints
