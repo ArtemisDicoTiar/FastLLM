@@ -49,7 +49,13 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
 
 - Train
   ```sh
-  $ python ./train.py
+  $ python run.py train
+  ```
+- Evaluation
+  ```sh
+  $ python run.py eval \
+      --ckpt_path <path to checkpoint> \
+      --device 0 \
   ```
 
 ### Model Checkpoints
