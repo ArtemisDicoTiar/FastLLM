@@ -53,13 +53,21 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
 
 - Train
   ```sh
-  $ python run.py train
+  $ python run.py train \
+      --drafter <drafter model> \
+      --exp_name <experiment name> \
+      --loss <loss value> \
+      --kd_loss <knowledge distillation loss> \
+      --kd_temp <knowledge distillation temperature> \
+      --distill_method <distillation method> \
+      run
   ```
 - Evaluation
   ```sh
   $ python run.py eval \
       --ckpt_path <path to checkpoint> \
       --device 0 \
+      run
   ```
 
 ### Model Checkpoints
