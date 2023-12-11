@@ -1,6 +1,7 @@
 import torch
 from torch import Tensor
 from torch.nn import Module
+from transformers import T5ForConditionalGeneration
 
 from FastLLM.sampling.speculative_sampling import top_k, gumbel_sample
 
@@ -13,13 +14,18 @@ def base_decoding(
     temperature = 1.,
     filter_thres = 0.9,
 ):
+    batch_size = prompt.shape[0]
     prompt_seq_len, out = prompt.shape[-1], prompt.clone()
     sample_num_times = max(0, seq_len - prompt_seq_len)
 
-    cache = None
-
+    # cache = None
+    decoder_input_ids = torch.zeros((batch_size, 1), dtype=torch.long, device=prompt.device)
     for _ in range(sample_num_times):
-        logits, cache = net(out, cache = cache, return_cache = True)
+        output = net(
+            out,
+            decoder_input_ids=decoder_input_ids if type(net) is T5ForConditionalGeneration else None,
+        )
+        logits = output.logits if not isinstance(output, dict) else output['logits']
         logits = logits[:, -1]
 
         logits = top_k(logits, thres = filter_thres)

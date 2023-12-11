@@ -1,5 +1,7 @@
+import torch
 from torch import nn, Tensor, softmax, cat
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Dict, Any
+
 
 class CNNTextSummarizationModel(nn.Module):
     def __init__(
@@ -39,7 +41,7 @@ class CNNTextSummarizationModel(nn.Module):
         labels: Optional[Tensor] = None,
         return_dict: Optional[bool] = True,
         **kwargs
-    ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+    ) -> Union[Dict[str, Union[Tensor, Any]], Tuple[Tensor, Any]]:
         # Apply the embedding layer to input_ids and decoder_input_ids
         input_embeddings = self.embedding(input_ids)
         decoder_embeddings = self.embedding(decoder_input_ids)
