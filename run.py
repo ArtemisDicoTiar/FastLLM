@@ -1,11 +1,11 @@
 import fire
-from src.eval import eval
-from src.train import train
+from src.eval import Evaluator
+from src.train import Train
 
 if __name__ == "__main__":
     fire.Fire(
         {
-            "train": train,
-            "eval": eval,
+            "train": Train,
+            "eval": Evaluator,
         }
     )
