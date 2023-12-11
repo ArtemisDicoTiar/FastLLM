@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+torch = "*"
+datasets = "*"
+transformers = "*"
+tqdm = "*"
+rich = "*"
+einops = "*"
+fire = "*"
+pydantic = "*"
+
+[requires]
+python_version = "3.10"
+
+[dev-packages]

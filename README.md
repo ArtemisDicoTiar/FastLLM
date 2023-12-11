@@ -39,18 +39,45 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
 
 ### Prerequisite
 
-- Install python 3.8 or higher
+- Install Python 3.8 or higher
+- Install Pipenv
+  ```sh
+  $ pip install pipenv
+  ```
 - Install python packages
   ```sh
-  $ pip install -r requirements.txt
+  $ pipenv install
   ```
 
 ### How to run
 
 - Train
   ```sh
-  $ python ./train.py
+  $ python run.py train
   ```
+- Evaluation
+  ```sh
+  $ python run.py eval \
+      --ckpt_path <path to checkpoint> \
+      --device 0 \
+  ```
+
+### Model Checkpoints
+* N-grams:
+   * BaseLine: 
+   * Distilled: 
+* CNN
+   * BaseLine: 
+   * Distilled: 
+* LSTM
+   * BaseLine: 
+   * Distilled: `/data/jaeseok/data/nlp/models/lstm_lstm-drafter-2023-12-08_14-01-35.pt` 
+* T5-Small
+   * BaseLine: `/data/wppark/Workspace/FastLLM/t5small_baseline-drafter-2023-12-08_13-42-00.pt`
+   * Distilled: `/data/wppark/Workspace/FastLLM/t5small_kd50-drafter-2023-12-08_13-36-59.pt`
+
+
+
 
 ## References
 ~~~
