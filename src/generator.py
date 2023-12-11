@@ -1,16 +1,17 @@
 from typing import Any
+
 from pydantic import BaseModel
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Pipeline
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from transformers.modeling_utils import PreTrainedModel
 from transformers.tokenization_utils import PreTrainedTokenizer
 
-from ..FastLLM.sampling.speculative_sampling import speculative_decoding
+from FastLLM.sampling.speculative_sampling import speculative_decoding
 
 
 class SpecDecText2TextGenerationPipeline(BaseModel):
-    drafter_model: PreTrainedModel
-    target_model: PreTrainedModel
-    tokenizer: PreTrainedTokenizer
+    drafter_model: Any
+    target_model: Any
+    tokenizer: Any
     device: int = -1
 
     gamma: int = 5
@@ -21,6 +22,9 @@ class SpecDecText2TextGenerationPipeline(BaseModel):
     seq_len: int = 512
 
     task: str = "text2text-generation"
+
+    class Config:
+        arbitrary_types_allowed = True
 
     def __init__(self, **data):
         super().__init__(**data)

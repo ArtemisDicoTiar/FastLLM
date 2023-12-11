@@ -1,13 +1,15 @@
 import unittest
-from transformers import T5Tokenizer, T5Model, T5ForConditionalGeneration
-from generator import SpecDecText2TextGenerationPipeline
+
+from transformers import AutoModel, AutoTokenizer
+
+from src.generator import SpecDecText2TextGenerationPipeline
 
 
 class TestSpecDecText2TextGenerationPipeline(unittest.TestCase):
     def setUp(self):
-        self.drafter_model = T5ForConditionalGeneration.from_pretrained("t5-small")
-        self.target_model = T5Model.from_pretrained("t5-base")
-        self.tokenizer = T5Tokenizer.from_pretrained("t5-small")
+        self.drafter_model = AutoModel.from_pretrained("t5-small")
+        self.target_model = AutoModel.from_pretrained("t5-base")
+        self.tokenizer = AutoTokenizer.from_pretrained("t5-small")
         self.pipeline = SpecDecText2TextGenerationPipeline(
             drafter_model=self.drafter_model,
             target_model=self.target_model,
