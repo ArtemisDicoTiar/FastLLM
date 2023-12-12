@@ -18,6 +18,7 @@ from FastLLM.constants import DATASET_NAME, DATASET_VERSION, TARGET_MODEL_NAME, 
 from FastLLM.models.base import Model
 from FastLLM.models.cnn import CNNTextSummarizationModel
 from FastLLM.models.lstm import LSTMTextSummarizationModel
+from FastLLM.models.ngrams import NgramModel
 from FastLLM.sampling.base_decoding import base_decoding
 from FastLLM.sampling.speculative_sampling import speculative_decoding
 from FastLLM.utils import distillation_loss
@@ -30,6 +31,9 @@ class Evaluator(BaseModel, extra=Extra.allow):
     device: int = 0
     exp_name: str = None
     gen_length: int = 32
+
+    use_ngram_drafter: bool = False
+    ngram_n: int = 3
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -68,7 +72,10 @@ class Evaluator(BaseModel, extra=Extra.allow):
         print("Target model loaded.")
 
     def _load_draft_model(self):
-        if self.drafter == "t5small":
+        if self.use_ngram_drafter:
+            self.draft_model = NgramModel(n=self.ngram_n, vocab_size=self.tokenizer.vocab_size, resume=self.ckpt_path,
+                                          device=f"cuda:{self.device}")
+        elif self.drafter == "t5small":
             self.draft_model = AutoModelForSeq2SeqLM.from_pretrained(T5_DRAFTER_MODEL_NAME)
         elif self.drafter == "lstm":
             self.draft_model = LSTMTextSummarizationModel(
@@ -81,8 +88,10 @@ class Evaluator(BaseModel, extra=Extra.allow):
                 pad_token_id=self.tokenizer.pad_token_id,
             )
         else:
-            raise NotImplementedError(f"Drafter {self.drafter} is not implemented.")
-        self.draft_model.load_state_dict(torch.load(self.ckpt_path))
+            raise NotImplementedError(f"drafter {self.drafter} not implemented.")
+
+        if self.drafter != "ngram":
+            self.draft_model.load_state_dict(torch.load(self.ckpt_path))
         self.draft_model.to(f"cuda:{self.device}")
         self.draft_model.eval()
         print("Draft model loaded.")
