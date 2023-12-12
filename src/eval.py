@@ -104,25 +104,27 @@ class Evaluator(BaseModel, extra=Extra.allow):
 
             # shape: (batch_size, max_token_length)
             input_tokens = self.tokenizer(
-                input_string, return_tensors="pt"
+                input_string, return_tensors="pt",
+                padding="max_length", truncation=True, max_length=512,
             )
+            input_tokens = input_tokens.to(f"cuda:{self.device}")
             max_token_length = input_tokens["input_ids"].shape[1]
 
             # TODO: speculative decoding apply
             GENERATE_LENGTH = max_token_length + self.gen_length
             target_sampled, target_base_decode_elapsed = benchmark(base_decoding)(
-                self.target_model, input_tokens, GENERATE_LENGTH
+                self.target_model, input_tokens["input_ids"], GENERATE_LENGTH
             )
             target_base_decode_output = self.tokenizer.batch_decode(target_sampled)
             draft_sampled, draft_base_decode_elapsed = benchmark(base_decoding)(
-                self.draft_model, input_tokens, GENERATE_LENGTH
+                self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH
             )
             draft_base_decode_output = self.tokenizer.batch_decode(draft_sampled)
 
             # set gamma value as default: 5
             GAMMA = 5
             (spec_decode_sampled, num_accepted), spec_decode_elapsed = benchmark(speculative_decoding)(
-                self.target_model, self.draft_model, input_tokens, GENERATE_LENGTH, GAMMA
+                self.target_model, self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH, GAMMA
             )
             spec_decode_output = self.tokenizer.batch_decode(spec_decode_sampled)
 

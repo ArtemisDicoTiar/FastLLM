@@ -20,17 +20,18 @@ def base_decoding(
 
     # cache = None
     decoder_input_ids = torch.zeros((batch_size, 1), dtype=torch.long, device=prompt.device)
-    for _ in range(sample_num_times):
+    for _ in range(sample_num_times - 1):
         output = net(
             out,
-            decoder_input_ids=decoder_input_ids if type(net) is T5ForConditionalGeneration else None,
+            decoder_input_ids=decoder_input_ids,
         )
         logits = output.logits if not isinstance(output, dict) else output['logits']
-        logits = logits[:, -1]
+        logits = logits[:, -1, :]
 
         logits = top_k(logits, thres = filter_thres)
         sample = gumbel_sample(logits, temperature = temperature, dim = -1)
 
         out = torch.cat((out, sample[..., None]), dim = -1)
+        decoder_input_ids = torch.cat((decoder_input_ids, sample[..., None]), dim = -1)
 
-    return out[..., prompt_seq_len:]
+    return decoder_input_ids
