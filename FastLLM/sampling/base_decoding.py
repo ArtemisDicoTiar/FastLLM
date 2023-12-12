@@ -20,9 +20,12 @@ def base_decoding(
     sample_num_times = max(0, seq_len - prompt_seq_len)
 
     # cache = None
+
     decoder_input_ids = torch.zeros((batch_size, 1), dtype=torch.long, device=prompt.device)
-    # if not target:
-    #     decoder_input_ids[:, 0] = prompt[:, -1]
+
+    # Ours implementation, drafter model does not know when decoder input starts (e.g. [pad])
+    if not target:
+        decoder_input_ids[:, 0] = prompt[:, -1]
     for _ in range(sample_num_times - 1):
         output = net(
             out,

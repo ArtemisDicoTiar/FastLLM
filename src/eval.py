@@ -7,6 +7,7 @@ from typing import List
 from datetime import datetime
 
 import torch
+import torchmetrics.text
 from datasets import load_dataset
 from pydantic import BaseModel, Extra
 from tqdm.rich import tqdm
@@ -31,6 +32,7 @@ class Evaluator(BaseModel, extra=Extra.allow):
     device: int = 0
     exp_name: str = ""
     gen_length: int = 32
+    batch_size: int = 4
 
     use_ngram_drafter: bool = False
     ngram_n: int = 3
@@ -98,16 +100,31 @@ class Evaluator(BaseModel, extra=Extra.allow):
         self.draft_model.eval()
         print("Draft model loaded.")
 
+    def _metrics_init(self):
+        self.target_metric = torchmetrics.text.ROUGEScore(accumulate="avg")
+        # self.draft_metric = torchmetrics.text.ROUGEScore(accumulate="avg")
+        self.spec_metric = torchmetrics.text.ROUGEScore(accumulate="avg")
+
+        self.target_time = []
+        # self.draft_time = []
+        self.spec_time = []
+
+        self.spec_num_accepted = []
+
     def _eval(self):
-        for record in tqdm(self.dataset):
-            record_id = record["id"]
-            input_string = record["article"]
-            label_string = record["highlights"]
+        # len(self.dataset)
+        for batch_index in tqdm(range(0, 8, self.batch_size)):
+            batch_start = batch_index
+            batch_end = batch_index + self.batch_size
+            record_id = self.dataset[batch_start:batch_end]["id"]
+            input_string = self.dataset[batch_start:batch_end]["article"]
+            label_string = self.dataset[batch_start:batch_end]["highlights"]
 
             # shape: (batch_size, max_token_length)
             input_tokens = self.tokenizer(
                 input_string, return_tensors="pt",
-                padding="max_length", truncation=True, max_length=512,
+                padding="max_length", truncation=True,
+                # max_length=512,
             )
             input_tokens = input_tokens.to(f"cuda:{self.device}")
             max_token_length = input_tokens["input_ids"].shape[1]
@@ -117,36 +134,53 @@ class Evaluator(BaseModel, extra=Extra.allow):
                 self.target_model, input_tokens["input_ids"], GENERATE_LENGTH, target=True
             )
             target_base_decode_output = self.tokenizer.batch_decode(target_sampled)
-
-            draft_sampled, draft_base_decode_elapsed = benchmark(base_decoding)(
-                self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH, target=False
-            )
-            draft_base_decode_output = self.tokenizer.batch_decode(draft_sampled)
+            #
+            # draft_sampled, draft_base_decode_elapsed = benchmark(base_decoding)(
+            #     self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH, target=False
+            # )
+            # draft_base_decode_output = self.tokenizer.batch_decode(draft_sampled)
 
             # set gamma value as default: 5
             GAMMA = 5
             (spec_decode_sampled, num_accepted), spec_decode_elapsed = benchmark(speculative_decoding)(
-                self.target_model, self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH, GAMMA
+                self.target_model, self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH, GAMMA,
+                force_to_target=True
             )
             spec_decode_output = self.tokenizer.batch_decode(spec_decode_sampled)
 
-            target_metric.update(target_base_decode_output, label_string)
-            draft_metric.update(draft_base_decode_output, label_string)
-            spec_metric.update(spec_decode_output, label_string)
+            self.target_metric.update(target_base_decode_output, label_string)
+            # self.draft_metric.update(draft_base_decode_output, label_string)
+            self.spec_metric.update(spec_decode_output, label_string)
 
-            self.logger.info("\ntarget decoding:\n\n", target_base_decode_output, "\n")
+            self.target_time.append(target_base_decode_elapsed)
+            # self.draft_time.append(draft_base_decode_elapsed)
+            self.spec_time.append(spec_decode_elapsed)
+
+            self.spec_num_accepted.append(num_accepted)
+
+            self.logger.info(f"\ntarget decoding:\n\n{target_base_decode_output}\n")
             self.logger.info(f'target decoding in: {target_base_decode_elapsed:.3f}ms\n')
 
-            self.logger.info("\ndraft decoding:\n\n", draft_base_decode_output, "\n")
-            self.logger.info(f'draft decoding in: {draft_base_decode_elapsed:.3f}ms\n')
+            # self.logger.info(f"\ndraft decoding:\n\n{draft_base_decode_output}\n")
+            # self.logger.info(f'draft decoding in: {draft_base_decode_elapsed:.3f}ms\n')
 
-            self.logger.info("\nspeculative decoding:\n\n", spec_decode_output, "\n")
+            self.logger.info(f"\nspeculative decoding{spec_decode_output}\n")
             self.logger.info(f'speculative decoding in: {spec_decode_elapsed:.3f}ms\n')
-            self.logger.info(f'average num accepted: {num_accepted:.1f} / {GAMMA}\n')
+            self.logger.info(f'num accepted: {num_accepted:.1f} / {GAMMA}\n')
 
-        self.logger.info(f"target metric: {target_metric.compute():.3f}")
-        self.logger.info(f"draft metric: {draft_metric.compute():.3f}")
-        self.logger.info(f"speculative metric: {spec_metric.compute():.3f}")
+        target_metric = self.target_metric.compute()
+        # draft_metric = self.draft_metric.compute()
+        spec_metric = self.spec_metric.compute()
+        for rouge2_metric in ["rouge2_fmeasure", "rouge2_precision", "rouge2_recall"]:
+            self.logger.info(f"target metric{rouge2_metric}: {target_metric[rouge2_metric]:.3f}")
+            # self.logger.info(f"draft metric{rouge2_metric}: {draft_metric[rouge2_metric]:.3f}")
+            self.logger.info(f"speculative metric{rouge2_metric}: {spec_metric[rouge2_metric]:.3f}")
+
+        self.logger.info(f"average target time: {sum(self.target_time) / len(self.target_time):.3f}ms")
+        # self.logger.info(f"average draft time: {sum(self.draft_time) / len(self.draft_time):.3f}ms")
+        self.logger.info(f"average speculative time: {sum(self.spec_time) / len(self.spec_time):.3f}ms")
+
+        self.logger.info(f"average speculative num accepted: {sum(self.spec_num_accepted) / len(self.spec_num_accepted):.1f}")
 
 
     def run(self):
@@ -156,4 +190,5 @@ class Evaluator(BaseModel, extra=Extra.allow):
         self._load_tokenizer()
         self._load_target_model()
         self._load_draft_model()
+        self._metrics_init()
         self._eval()
