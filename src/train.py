@@ -93,10 +93,6 @@ class Train(BaseModel):
 
         # ============= DATASET ============= #
         dataset = load_dataset(DATASET_NAME, DATASET_VERSION, split="train")
-        if not self.drafter == "ngram":
-            dataset = dataset.map(
-                function=lambda batch: batch, batched=True, batch_size=batch_size
-            )
 
         # ============= TOKENIZER ============= #
         # this tokenizer is used for both the draft and target models
