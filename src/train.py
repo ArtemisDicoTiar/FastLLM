@@ -27,11 +27,12 @@ from FastLLM.constants import (
 )
 from FastLLM.models.cnn import CNNTextSummarizationModel
 from FastLLM.models.lstm import LSTMTextSummarizationModel
+from FastLLM.models.ngrams import NgramModel, prepare_pseudo_dataset
 from FastLLM.utils import distillation_loss
 
 
 class Train(BaseModel):
-    drafter: str  # t5small, lstm, cnn
+    drafter: str  # t5small, lstm, cnn, ngram
     exp_name: str
     loss: float = 1
     kd_loss: float = 1
@@ -39,6 +40,9 @@ class Train(BaseModel):
     distil_method: str = (
         "Seq_KD"  # Seq_KD, Supervised_KD, Imit_KD, f_Distill, on_policy_GKD
     )
+    device: int = 0
+    ngram_n: int = 3
+    pseudo_dataset_path: str = None # path to pseudo dataset, if None, use the original dataset
 
     def run(self):
         # ============= Experiment NAME ============= #
@@ -68,7 +72,6 @@ class Train(BaseModel):
         torch.manual_seed(42)
 
         # ============= PARAMETERs ============= #
-        device = 0
 
         distil_method = self.distil_method
 
@@ -90,9 +93,6 @@ class Train(BaseModel):
 
         # ============= DATASET ============= #
         dataset = load_dataset(DATASET_NAME, DATASET_VERSION, split="train")
-        dataset = dataset.map(
-            function=lambda batch: batch, batched=True, batch_size=batch_size
-        )
 
         # ============= TOKENIZER ============= #
         # this tokenizer is used for both the draft and target models
@@ -101,10 +101,26 @@ class Train(BaseModel):
         )
 
         # ============= MODELs ============= #
+        # Ngram case is different since we can't "train" a ngram model.
+        if self.drafter == "ngram":
+            drafter_model = NgramModel(self.ngram_n, tokenizer.vocab_size, device=f"cuda:{self.device}")
+            drafter_model.to(f"cuda:{self.device}")
+            drafter_model.train()
+            drafer_save_path = f"./{drafter_model_name}-{'pseudodataset' if self.pseudo_dataset_path is not None else 'dataset'}-{current_time}/"
+            if self.pseudo_dataset_path is not None:
+                print("Fitting the ngram on the pseudo dataset.")
+                dataset = prepare_pseudo_dataset(self.pseudo_dataset_path, tokenizer)
+            else:
+                print("Fitting the ngram on the original dataset labels.")
+                dataset = [tokenizer(text, return_tensors="pt") for text in tqdm(dataset["highlights"], total=len(dataset), desc="Tokenizing dataset", mininterval=20)]
+            drafter_model.fit(dataset)
+            drafter_model.save(drafer_save_path)
+            quit(0)
+
         target_model = AutoModelForSeq2SeqLM.from_pretrained(
             TARGET_MODEL_NAME,
         )
-        target_model.to(f"cuda:{device}")
+        target_model.to(f"cuda:{self.device}")
         target_model.eval()
 
         if self.drafter == "t5small":
@@ -120,7 +136,7 @@ class Train(BaseModel):
                 pad_token_id=tokenizer.pad_token_id,
             )
 
-        draft_model.to(f"cuda:{device}")
+        draft_model.to(f"cuda:{self.device}")
         draft_model.train()
 
         # ============= LOSS FUNCTION (Distillation) ============= #

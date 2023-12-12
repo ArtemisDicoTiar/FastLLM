@@ -31,10 +31,9 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
 * Target model
   * FLAN-T5-XL (finetuned model: [bbhattar/flan_t5_xl_cnn_dailymail](https://huggingface.co/bbhattar/flan_t5_xl_cnn_dailymail))
 * Forgotten small models for Drafter
-  * N-gram models (N: 1 ~ 5)
-    * (model size: N/A)
-  * Convolutional Neural Network (model size: ...)
-  * Long-Short Term Memory (model size: ...)
+  * N-gram models (N: 1 ~ 4)
+  * Convolutional Neural Network
+  * Long-Short Term Memory
   * [T5-small](https://huggingface.co/google/t5-v1_1-small) (approx. 60M parameters)
 
 ### Prerequisite
@@ -51,7 +50,7 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
 
 ### How to run
 
-- Train
+- Train (exclude ngram)
   ```sh
   $ python run.py train \
       --drafter <drafter model> \
@@ -70,10 +69,23 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
       run
   ```
 
+Since NgramModel isn't a deep learning model, the process is different for the "training" (making of the ngrams)
+
+- Generate the pseudo-dataset: Use the multi gpus generation script `./FastLLM/scripts/generate_peudodataset_multigpus.sh` after modifying the parameters in the script.
+- Fit the ngram
+  ```sh
+  $ python run.py train \
+      --drafter ngram \
+      --exp_name <experiment name> \
+      --ngram_n <size of gram> \
+      --pseudo_dataset_path <path to the generated dataset OR do not include to train on original> \
+      run
+  ```
+
 ### Model Checkpoints
-* N-grams:
-   * BaseLine: 
-   * Distilled: 
+* N-grams (1 to 4):
+   * BaseLine (Built on dataset's labels): `/data/romsto/ngrams_ckpts/dataset/` 
+   * Distilled (Built on pseudo dataset): `/data/romsto/ngrams_ckpts/pseudo_dataset/`
 * CNN
    * BaseLine: 
    * Distilled: 
@@ -84,7 +96,18 @@ Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
    * BaseLine: `/data/wppark/Workspace/FastLLM/t5small_baseline-drafter-2023-12-08_13-42-00.pt`
    * Distilled: `/data/wppark/Workspace/FastLLM/t5small_kd50-drafter-2023-12-08_13-36-59.pt`
 
+### Model details
 
+#### NgramModel
+The `NgramModel` is a torch implementation of a naive n-gram model. It is used to compute the probability of the next token given the previous prefix. The model is built using a map of n-grams and their corresponding counts, which are used to calculate the probabilities.
+
+The model uses Laplace smoothing to handle the case of unseen n-grams in the training data. The smoothing parameter can be adjusted during the model initialization.
+
+The `NgramModel` class provides custom methods for saving and loading the model. The model is saved in a text format, which includes the n-gram counts and total counts. To load a saved model, you should input the path of the saved model in the `resume` parameter of the constructor.
+
+The model also uses backoff models for handling cases where the prefix length is less than n-1. The backoff model is an (n-1)-gram model that is used when the current n-gram model cannot provide a prediction.
+
+Please note that the `fit` method is not a training method in the traditional sense, as the model is not trainable. It simply builds the n-gram counts based on the given data.
 
 
 ## References
