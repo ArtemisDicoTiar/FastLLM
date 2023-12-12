@@ -29,7 +29,7 @@ class Evaluator(BaseModel, extra=Extra.allow):
     ckpt_path: str
     drafter: str
     device: int = 0
-    exp_name: str = None
+    exp_name: str = ""
     gen_length: int = 32
 
     use_ngram_drafter: bool = False
@@ -91,7 +91,9 @@ class Evaluator(BaseModel, extra=Extra.allow):
             raise NotImplementedError(f"drafter {self.drafter} not implemented.")
 
         if self.drafter != "ngram":
-            self.draft_model.load_state_dict(torch.load(self.ckpt_path))
+            log = self.draft_model.load_state_dict(torch.load(self.ckpt_path))
+            print(log)
+            # self.draft_model = torch.load(self.ckpt_path, map_location=f"cuda:{self.device}")
         self.draft_model.to(f"cuda:{self.device}")
         self.draft_model.eval()
         print("Draft model loaded.")
@@ -110,14 +112,14 @@ class Evaluator(BaseModel, extra=Extra.allow):
             input_tokens = input_tokens.to(f"cuda:{self.device}")
             max_token_length = input_tokens["input_ids"].shape[1]
 
-            # TODO: speculative decoding apply
             GENERATE_LENGTH = max_token_length + self.gen_length
             target_sampled, target_base_decode_elapsed = benchmark(base_decoding)(
-                self.target_model, input_tokens["input_ids"], GENERATE_LENGTH
+                self.target_model, input_tokens["input_ids"], GENERATE_LENGTH, target=True
             )
             target_base_decode_output = self.tokenizer.batch_decode(target_sampled)
+
             draft_sampled, draft_base_decode_elapsed = benchmark(base_decoding)(
-                self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH
+                self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH, target=False
             )
             draft_base_decode_output = self.tokenizer.batch_decode(draft_sampled)
 

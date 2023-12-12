@@ -95,20 +95,21 @@ def speculative_decoding(
         for _ in range(gamma):
             small_logits = small_net(
                 out,
-                decoder_input_ids=decoder_input_ids if type(small_net) is T5ForConditionalGeneration else None,
+                decoder_input_ids=decoder_input_ids,
                 # seq_start_pos=out.shape[-1] - seq_lens,
                 # cache=small_cache,
                 # return_cache=True
             )
             small_logits = small_logits.logits if not isinstance(small_logits, dict) else small_logits['logits']
 
-            small_logits = small_logits[:, -1]
+            small_logits = small_logits[:, -1, :]
 
             small_logits = top_k(small_logits, thres=filter_thres)
             all_small_logits.append(small_logits)
 
             sample = gumbel_sample(small_logits, temperature=temperature, dim=-1)
             out = torch.cat((out, sample[..., None]), dim=-1)
+            decoder_input_ids = torch.cat((decoder_input_ids, sample[..., None]), dim=-1)
             seq_lens += 1
 
             q_sampled_out.append(rearrange(sample, 'b -> b 1 1'))
@@ -117,10 +118,10 @@ def speculative_decoding(
         small_logits = torch.stack(all_small_logits, dim=-2)
 
         # verify with larger network
-
+        decoder_input_ids = torch.zeros((batch, 1), dtype=torch.long, device=prompt.device)
         logits = net(
             out,
-            decoder_input_ids=decoder_input_ids if type(net) is T5ForConditionalGeneration else None,
+            decoder_input_ids=decoder_input_ids,
             # seq_start_pos=out.shape[-1] - seq_lens,
             # cache=cache,
             # return_cache=True
@@ -135,7 +136,7 @@ def speculative_decoding(
         prob = safe_div(logits, temperature).softmax(dim=-1)
         small_prob = safe_div(small_logits, temperature).softmax(dim=-1)
 
-        p, prob_next = prob[:, :-1], prob[:, -1]
+        p, prob_next = prob[:, :-1, :], prob[:, -1, :]
 
         p = p.gather(-1, q_sampled_out)
         q = small_prob.gather(-1, q_sampled_out) * lenience

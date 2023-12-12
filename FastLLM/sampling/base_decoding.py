@@ -13,6 +13,7 @@ def base_decoding(
     seq_len: int,
     temperature = 1.,
     filter_thres = 0.9,
+    target: bool = False,
 ):
     batch_size = prompt.shape[0]
     prompt_seq_len, out = prompt.shape[-1], prompt.clone()
@@ -20,6 +21,8 @@ def base_decoding(
 
     # cache = None
     decoder_input_ids = torch.zeros((batch_size, 1), dtype=torch.long, device=prompt.device)
+    # if not target:
+    #     decoder_input_ids[:, 0] = prompt[:, -1]
     for _ in range(sample_num_times - 1):
         output = net(
             out,

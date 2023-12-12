@@ -183,13 +183,13 @@ class Train(BaseModel):
                     return_tensors="pt",
                     truncation=True,
                     padding=True,
-                ).to(f"cuda:{device}")
+                ).to(f"cuda:{self.device}")
                 label_tokens = tokenizer(
                     label_string,
                     return_tensors="pt",
                     truncation=True,
                     padding=True,
-                ).to(f"cuda:{device}")
+                ).to(f"cuda:{self.device}")
                 max_token_length = input_tokens["input_ids"].shape[1]
 
                 with torch.no_grad():
