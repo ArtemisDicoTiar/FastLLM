@@ -10,6 +10,7 @@ from torch import nn, einsum, Tensor
 import torch.nn.functional as F
 
 from einops import rearrange
+from transformers import T5ForConditionalGeneration
 
 
 # helper functions
@@ -74,8 +75,8 @@ def speculative_decoding(
     batch, prompt_seq_len, out, device = *prompt.shape, prompt.clone(), prompt.device
     sample_num_times = max(0, seq_len - prompt_seq_len)
 
-    cache = None
-    small_cache = None
+    # cache = None
+    # small_cache = None
 
     num_steps = 0
     total_accepted = 0
@@ -90,13 +91,16 @@ def speculative_decoding(
         all_small_logits = []
         q_sampled_out = []
 
+        decoder_input_ids = torch.zeros((batch, 1), dtype=torch.long, device=prompt.device)
         for _ in range(gamma):
-            small_logits, small_cache = small_net(
+            small_logits = small_net(
                 out,
-                seq_start_pos=out.shape[-1] - seq_lens,
-                cache=small_cache,
-                return_cache=True
+                decoder_input_ids=decoder_input_ids if type(small_net) is T5ForConditionalGeneration else None,
+                # seq_start_pos=out.shape[-1] - seq_lens,
+                # cache=small_cache,
+                # return_cache=True
             )
+            small_logits = small_logits.logits if not isinstance(small_logits, dict) else small_logits['logits']
 
             small_logits = small_logits[:, -1]
 
@@ -114,12 +118,14 @@ def speculative_decoding(
 
         # verify with larger network
 
-        logits, cache = net(
+        logits = net(
             out,
-            seq_start_pos=out.shape[-1] - seq_lens,
-            cache=cache,
-            return_cache=True
+            decoder_input_ids=decoder_input_ids if type(net) is T5ForConditionalGeneration else None,
+            # seq_start_pos=out.shape[-1] - seq_lens,
+            # cache=cache,
+            # return_cache=True
         )
+        logits = logits.logits if not isinstance(logits, dict) else logits['logits']
 
         logits = logits[..., -(gamma + 1):, :]
         logits = top_k(logits, thres=filter_thres)
@@ -171,23 +177,23 @@ def speculative_decoding(
             out = F.pad(out, (0, max_num_rejected), value=pad_id)
             out = out[batch_range, seq_offset_indices]
 
-            cache = tuple(F.pad(t, (0, 0, 0, max_num_rejected), value=pad_id) for t in cache)
-            small_cache = tuple(F.pad(t, (0, 0, 0, max_num_rejected), value=pad_id) for t in small_cache)
-
-            cache = tuple(rearrange(t, 'b ... n d -> b n ... d') for t in cache)
-            small_cache = tuple(rearrange(t, 'b ... n d -> b n ... d') for t in small_cache)
-
-            cache = tuple(t[batch_range, seq_offset_indices] for t in cache)
-            small_cache = tuple(t[batch_range, seq_offset_indices] for t in small_cache)
-
-            cache = tuple(rearrange(t, 'b n ... d -> b ... n d') for t in cache)
-            small_cache = tuple(rearrange(t, 'b n ... d -> b ... n d') for t in small_cache)
+            # cache = tuple(F.pad(t, (0, 0, 0, max_num_rejected), value=pad_id) for t in cache)
+            # small_cache = tuple(F.pad(t, (0, 0, 0, max_num_rejected), value=pad_id) for t in small_cache)
+            #
+            # cache = tuple(rearrange(t, 'b ... n d -> b n ... d') for t in cache)
+            # small_cache = tuple(rearrange(t, 'b ... n d -> b n ... d') for t in small_cache)
+            #
+            # cache = tuple(t[batch_range, seq_offset_indices] for t in cache)
+            # small_cache = tuple(t[batch_range, seq_offset_indices] for t in small_cache)
+            #
+            # cache = tuple(rearrange(t, 'b n ... d -> b ... n d') for t in cache)
+            # small_cache = tuple(rearrange(t, 'b n ... d -> b ... n d') for t in small_cache)
 
             if out.shape[-1] > max_seq_len:
                 left_index = out.shape[-1] - max_seq_len
                 out = out[:, left_index:]
-                cache = tuple(t[..., left_index:, :] for t in cache)
-                small_cache = tuple(t[..., left_index:, :] for t in small_cache)
+                # cache = tuple(t[..., left_index:, :] for t in cache)
+                # small_cache = tuple(t[..., left_index:, :] for t in small_cache)
 
         # sample the additional token, one of the tricks in the paper to better bound the worst case
 
