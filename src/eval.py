@@ -112,8 +112,7 @@ class Evaluator(BaseModel, extra=Extra.allow):
         self.spec_num_accepted = []
 
     def _eval(self):
-        # len(self.dataset)
-        for batch_index in tqdm(range(0, 8, self.batch_size)):
+        for batch_index in tqdm(range(0, len(self.dataset), self.batch_size)):
             batch_start = batch_index
             batch_end = batch_index + self.batch_size
             record_id = self.dataset[batch_start:batch_end]["id"]
