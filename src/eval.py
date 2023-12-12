@@ -14,12 +14,15 @@ from transformers import (Adafactor, AutoModelForSeq2SeqLM, AutoTokenizer,
 
 from FastLLM.constants import DATASET_NAME, DATASET_VERSION, TARGET_MODEL_NAME
 from FastLLM.models.base import Model
+from FastLLM.models.ngrams import NgramModel
 from FastLLM.utils import distillation_loss
 
 
 class Evaluator(BaseModel):
     ckpt_path: str
     device: int = 0
+    use_ngram_drafter: bool = False
+    ngram_n: int = 3
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -36,10 +39,15 @@ class Evaluator(BaseModel):
         self.target_model.eval()
 
     def _load_draft_model(self):
-        self.draft_model = Model()
-        self.draft_model.load_state_dict(torch.load(self.ckpt_path))
-        self.draft_model.to(f"cuda:{self.device}")
-        self.draft_model.eval()
+        if self.use_ngram_drafter:
+            self.draft_model = NgramModel(n=self.ngram_n, vocab_size=self.tokenizer.vocab_size, resume=self.ckpt_path, device=f"cuda:{self.device}")
+            self.draft_model.to(f"cuda:{self.device}")
+            self.draft_model.eval()
+        else:
+            self.draft_model = Model()
+            self.draft_model.load_state_dict(torch.load(self.ckpt_path))
+            self.draft_model.to(f"cuda:{self.device}")
+            self.draft_model.eval()
 
     def _eval(self):
         for record in tqdm(self.dataset):
