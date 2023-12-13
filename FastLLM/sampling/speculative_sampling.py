@@ -67,7 +67,7 @@ def speculative_decoding(
         filter_thres=0.9,
         lenience=1.,
         pad_id=0,
-        force_to_target=False
+        force_to_target=False,
 ):
     """
     eq. algorithm 1 in paper https://arxiv.org/abs/2211.17192
@@ -91,6 +91,10 @@ def speculative_decoding(
 
         all_small_logits = []
         q_sampled_out = []
+
+        # copy for target
+        prev_out_length = out.shape[-1]
+        target_out = out.clone()
 
         generated_seq = out[:, prompt_seq_len:]
         zeros = torch.zeros((batch, 1), dtype=torch.long, device=prompt.device)
@@ -120,15 +124,14 @@ def speculative_decoding(
         # verify with larger network
         target_logits = torch.tensor([], device=device)
 
-        target_decoder_input_ids = out[:, prompt_seq_len:].clone()
-        target_decoder_input_ids = torch.cat((zeros, target_decoder_input_ids), dim=-1)
+        target_decoder_input_ids = decoder_input_ids.clone()
         for i in range(gamma + 1):
             if i != gamma:
                 decoder_in = target_decoder_input_ids[:, :-gamma + i]
             else:
                 decoder_in = target_decoder_input_ids
             logits = net(
-                out,
+                target_out,
                 decoder_input_ids=decoder_in,
             )
             logits = logits.logits if not isinstance(logits, dict) else logits['logits']
@@ -137,6 +140,10 @@ def speculative_decoding(
             logits = top_k(logits, thres=filter_thres)
 
             target_logits = torch.cat((target_logits, logits), dim=-2)
+
+            # sample = gumbel_sample(logits, temperature=temperature, dim=-1)
+            # target_out = torch.cat((target_out, sample[..., None]), dim=-1)
+            target_out = torch.cat((target_out, decoder_in[..., -1:]), dim=-1)
 
         # prob and prob of small model (p(x) and q(x) in algorithm 1)
         prob = safe_div(target_logits, temperature).softmax(dim=-1)
@@ -172,11 +179,13 @@ def speculative_decoding(
                 adjusted_prob,
                 prob_next
             )
+        else:
+            prob_next = prob[batch_range, accepted, :]
 
         # do a bunch of slicing and align everything to the right, including kv caches
         # @@ rollback rejected tokens
         max_num_rejected = num_rejected.amax()
-        seq_arange = torch.arange(out.shape[-1], device=device, dtype=torch.long)
+        seq_arange = torch.arange(prev_out_length, device=device, dtype=torch.long)
         seq_offset_indices = seq_arange + (max_num_rejected - num_rejected)[..., None]
 
         seq_lens -= num_rejected
@@ -189,13 +198,15 @@ def speculative_decoding(
             if out.shape[-1] > max_seq_len:
                 left_index = out.shape[-1] - max_seq_len
                 out = out[:, left_index:]
+        # else:
+        #     out = out[batch_range, :max_seq_len]
 
         # sample the additional token, one of the tricks in the paper to better bound the worst case
         if not force_to_target:
             # @@ this is implemented as same as paper
             next_token = torch.multinomial(prob_next, 1)
         else:
-            next_token = prob_next.argmax(dim=-1, keepdim=True)
+            next_token = prob_next.argmax(dim=-1)
 
         out = torch.cat((out, next_token), dim=-1)
         seq_lens += 1

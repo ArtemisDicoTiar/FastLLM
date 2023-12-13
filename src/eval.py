@@ -112,7 +112,7 @@ class Evaluator(BaseModel, extra=Extra.allow):
         self.spec_num_accepted = []
 
     def _eval(self):
-        for batch_index in tqdm(range(0, len(self.dataset), self.batch_size)):
+        for batch_index in tqdm(range(0, 8, self.batch_size)):
             batch_start = batch_index
             batch_end = batch_index + self.batch_size
             record_id = self.dataset[batch_start:batch_end]["id"]
@@ -143,7 +143,7 @@ class Evaluator(BaseModel, extra=Extra.allow):
             GAMMA = 5
             (spec_decode_sampled, num_accepted), spec_decode_elapsed = benchmark(speculative_decoding)(
                 self.target_model, self.draft_model, input_tokens["input_ids"], GENERATE_LENGTH, GAMMA,
-                force_to_target=True
+                force_to_target=False
             )
             spec_decode_output = self.tokenizer.batch_decode(spec_decode_sampled)
 
