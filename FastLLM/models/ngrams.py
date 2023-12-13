@@ -96,11 +96,19 @@ class NgramModel(nn.Module):
         return logits, probabilities
 
 
-    def generate(self, input_ids: Tensor) -> Tuple[Tensor, Tensor]:
+    def generate(self, input_tokens) -> Tuple[Tensor, Tensor]:
         """
         This function is used for model inference. (Same as a forward pass)
+        :param input_tokens: input_ids of the tokenized prefix
+        :return: logits and probabilities of the next tokens
         """
-        return self.forward(input_ids)
+        
+        input_ids = input_tokens['input_ids']
+        input_ids = input_ids.to(self.device)
+        _, next_token_probs = self.forward(input_ids)
+        _, next_token_idx = torch.max(next_token_probs, dim=-1)
+
+        return next_token_idx, next_token_probs
 
 
     def fit(self, data: List[Dict[str, Tensor]]) -> None:
