@@ -73,7 +73,7 @@ class LSTMTextSummarizationModel(nn.Module):
         :return: next step tokens
         """
 
-        with no_grad():
+        with torch.no_grad():
             input_ids = input_ids.unsqueeze(0)
             device = next(self.parameters()).device
             input_ids = input_ids.to(device)
