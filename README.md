@@ -6,10 +6,10 @@ SNU - Natural Language Processing, Final Project
 ## TL;DR
 The project aims to improve the generation speed of Large Language Models (LLMs) by using smaller models (drafters) to generate token drafts in parallel. These drafts are then accepted or replaced by the LLM. Two approaches are considered: using Knowledge Distillation to transfer the target model's distribution to smaller models and generating a pseudo-dataset to train non-neural models. Experiments will be conducted on summarization tasks using the CNN/DailyMail dataset, with the target model being FLAN-T5-XL and drafters including N-gram models, CNN, LSTM, and T5-small. Evaluation will compare acceptance rates between distilled and baseline models.
 
-[Presentation Link](https://docs.google.com/presentation/d/1aVl-7LN0Ryjw0jq_RnF0OuLRLqW1EHfgyeMqEQdj1Hw/edit?usp=drive_link)
+[Presentation Link](https://docs.google.com/presentation/d/15dF94japq756oelQDUEs5wlfMWQrBnCQ3_4ujOOS5fk/edit?usp=sharing)
 
 ## Members
-종윤, 재석, 원표, 재진, Romain
+종윤 (@ArtemisDicoTiar), 재석 (@medduk9871), 원표 (@lenscloth), 재진 (@jjkim0807), Romain (@RomainStorai)
 
 ## Problem Definition
 Large Language Models (LLMs) are struggling on generation speed as it requires auto-regressive generation (sequential token by token generation). This is mainly caused by a memory bottleneck.
@@ -93,18 +93,19 @@ Since NgramModel isn't a deep learning model, the process is different for the "
   ```
 
 ### Model Checkpoints
+*Local checkpoints...*
 * N-grams (1 to 4):
    * BaseLine (Built on dataset's labels): `/data/romsto/ngrams_ckpts/dataset/` 
    * Distilled (Built on pseudo dataset): `/data/romsto/ngrams_ckpts/pseudo_dataset/`
 * CNN
    * BaseLine: `/data/jaeseok/data/nlp/models/`
-   * Distilled: `/data/jaeseok/data/nlp/models/cnn_cnn-drafter-2023-12-09_04-19-43.pt` 
+   * Distilled: `/data/jaeseok/data/nlp/models/cnn_cnn-drafter-2023.pt` 
 * LSTM
    * BaseLine: `/data/jaeseok/data/nlp/models/`
-   * Distilled: `/data/jaeseok/data/nlp/models/lstm_lstm-drafter-2023-12-08_14-01-35.pt` 
+   * Distilled: `/data/jaeseok/data/nlp/models/lstm_lstm-drafter-2023.pt` 
 * T5-Small
-   * BaseLine: `/data/wppark/Workspace/FastLLM/t5small_baseline-drafter-2023-12-08_13-42-00.pt`
-   * Distilled: `/data/wppark/Workspace/FastLLM/t5small_kd50-drafter-2023-12-08_13-36-59.pt`
+   * BaseLine: `/data/wppark/Workspace/FastLLM/t5small_baseline-drafter-2023.pt`
+   * Distilled: `/data/wppark/Workspace/FastLLM/t5small_kd50-drafter-2023.pt`
 
 ### Model details
 

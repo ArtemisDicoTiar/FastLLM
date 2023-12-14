@@ -16,10 +16,7 @@ class SpecDecText2TextGenerationPipeline(BaseModel):
 
     gamma: int = 5
     temperature: float = 1.0
-    filter_thres: float = 0.9
-    lenience: float = 1.0
-    pad_id: int = 0
-    seq_len: int = 512
+    top_p: float = 0.9
 
     task: str = "text2text-generation"
 
@@ -40,15 +37,12 @@ class SpecDecText2TextGenerationPipeline(BaseModel):
         input_ids = input_ids.to(self.device)
 
         output_ids, accept_rate = speculative_decoding(
-            net=self.target_model,
-            small_net=self.drafter_model,
-            prompt=input_ids,
-            seq_length=self.seq_len,
+            target=self.target_model,
+            drafter=self.drafter_model,
+            input_ids=input_ids,
             gamma=self.gamma,
             temperature=self.temperature,
-            filter_thres=self.filter_thres,
-            lenience=self.lenience,
-            pad_id=self.pad_id,
+            top_p=self.top_p,
         )
 
         output_string = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)

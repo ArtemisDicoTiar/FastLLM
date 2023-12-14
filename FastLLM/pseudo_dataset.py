@@ -7,6 +7,12 @@ from constants import TARGET_MODEL_NAME, DATASET_NAME, DATASET_VERSION
 
 
 def split_dataset(data, number_of_splits=4, output_dir="./splits"):
+    """
+    This function is used to split the dataset into n splits.
+    :param data: The dataset to split
+    :param number_of_splits: The number of splits to create
+    :param output_dir: The directory to save the splits
+    """
     if not data:
         return
     if not os.path.exists(output_dir):
@@ -23,6 +29,14 @@ def split_dataset(data, number_of_splits=4, output_dir="./splits"):
 
 
 def generate_pseudo_dataset(model, tokenizer, splitted_data, output_dir="./pseudo_dataset", split_number=0):
+    """
+    This function is used to generate the pseudo dataset from the splits.
+    :param model: The model to use for generation
+    :param tokenizer: The tokenizer to use for generation
+    :param splitted_data: The splitted data to generate from
+    :param output_dir: The directory to save the generated data
+    :param split_number: The split number to generate from
+    """
     if not splitted_data:
         return
     if not os.path.exists(output_dir):
@@ -42,6 +56,13 @@ def generate_pseudo_dataset(model, tokenizer, splitted_data, output_dir="./pseud
     
 
 def merge_generated_data(generated_data_dir="./pseudo_dataset", output_dir="./pseudo_dataset", output_name="pdataset"):
+    """
+    This function is used to merge the generated data into a single dataset.
+    :param generated_data_dir: The directory containing the generated data
+    :param output_dir: The directory to save the merged data
+    :param output_name: The name of the merged data
+    """
+
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
@@ -113,3 +134,5 @@ if __name__ == '__main__':
     if args.merge_generated_data:
         merge_generated_data(args.generated_pseudo_dataset_dir, args.merged_output_dir, args.merged_output_name)
         exit()
+
+    print("You have to use at least one of the following arguments: --split_dataset, --generate_pseudo_dataset, --merge_generated_data")
