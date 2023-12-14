@@ -88,4 +88,4 @@ class CNNTextSummarizationModel(nn.Module):
             input_ids = input_ids.to(device)
             # Pass the input_embeddings through the model to get the probabilities of next tokens
             outputs = self(input_ids=input_ids[:, :0], decoder_input_ids=input_ids)
-            return outputs['logits']
+            return outputs['logits'][0, -1, :]
