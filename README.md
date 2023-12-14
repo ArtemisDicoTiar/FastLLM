@@ -6,10 +6,10 @@ SNU - Natural Language Processing, Final Project
 ## TL;DR
 The project aims to improve the generation speed of Large Language Models (LLMs) by using smaller models (drafters) to generate token drafts in parallel. These drafts are then accepted or replaced by the LLM. Two approaches are considered: using Knowledge Distillation to transfer the target model's distribution to smaller models and generating a pseudo-dataset to train non-neural models. Experiments will be conducted on summarization tasks using the CNN/DailyMail dataset, with the target model being FLAN-T5-XL and drafters including N-gram models, CNN, LSTM, and T5-small. Evaluation will compare acceptance rates between distilled and baseline models.
 
-[Presentation Link](https://docs.google.com/presentation/d/1aVl-7LN0Ryjw0jq_RnF0OuLRLqW1EHfgyeMqEQdj1Hw/edit?usp=drive_link)
+[Presentation Link](https://docs.google.com/presentation/d/15dF94japq756oelQDUEs5wlfMWQrBnCQ3_4ujOOS5fk/edit?usp=sharing)
 
 ## Members
-종윤, 재석, 원표, 재진, Romain
+종윤 (@ArtemisDicoTiar), 재석 (@medduk9871), 원표 (@lenscloth), 재진 (@jjkim0807), Romain (@RomainStorai)
 
 ## Problem Definition
 Large Language Models (LLMs) are struggling on generation speed as it requires auto-regressive generation (sequential token by token generation). This is mainly caused by a memory bottleneck.
