@@ -66,22 +66,18 @@ class LSTMTextSummarizationModel(nn.Module):
         else:
             return probabilities, logits
 
-    def generate(self, input_tokens) -> Tuple[Tensor, Tensor]:
+    def generate(self, input_ids) -> Tensor:
         """
         This function is used for evaluation.
         :param input_tokens:
         :return: next step tokens
         """
-        input_ids = input_tokens['input_ids']
 
-        with no_grad():
+        with torch.no_grad():
+            input_ids = input_ids.unsqueeze(0)
             device = next(self.parameters()).device
             input_ids = input_ids.to(device)
             # Pass the input_embeddings through the model to get the probabilities of next tokens
             outputs = self(input_ids=input_ids[:, :0], decoder_input_ids=input_ids)
-            next_token_probs = outputs['probs']  # tensor representing the probabilities of next tokens
+            return outputs['logits'][0, -1, :]
 
-            # Get the predicted token indices (assuming you want the most likely token)
-            _, predicted_indices = max(next_token_probs, dim=-1)
-        
-            return next_token_probs, predicted_indices
