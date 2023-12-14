@@ -12,14 +12,14 @@ class SpecDecText2TextGenerationPipeline(BaseModel):
     drafter_model: Any
     target_model: Any
     tokenizer: Any
-    device: int = -1
+    device: int = 0
 
     gamma: int = 5
-    temperature: float = 1.0
+    temperature: float = 1
     filter_thres: float = 0.9
     lenience: float = 1.0
     pad_id: int = 0
-    seq_len: int = 512
+    seq_len: int = 30
 
     task: str = "text2text-generation"
 
@@ -40,8 +40,9 @@ class SpecDecText2TextGenerationPipeline(BaseModel):
         input_ids = input_ids.to(self.device)
 
         output_ids, accept_rate = speculative_decoding(
-            net=self.drafter_model,
-            small_net=self.target_model,
+            tokenizer=self.tokenizer,
+            net=self.target_model,
+            small_net=self.drafter_model,
             prompt=input_ids,
             seq_len=self.seq_len,
             gamma=self.gamma,
@@ -62,16 +63,15 @@ class SpecDecText2TextGenerationPipeline(BaseModel):
 class Generator(BaseModel):
     drafter_path: str
     target_path: str
-    gamma: int = 20
+    gamma: int = 5
 
-    def __init__(self, **data):
-        super().__init__(**data)
-
+    @property
+    def pipeline(self):
         tokenizer = AutoTokenizer.from_pretrained(self.target_path)
         drafter_model = AutoModelForSeq2SeqLM.from_pretrained(self.drafter_path)
         target_model = AutoModelForSeq2SeqLM.from_pretrained(self.target_path)
 
-        self.pipeline = SpecDecText2TextGenerationPipeline(
+        return SpecDecText2TextGenerationPipeline(
             tokenizer=tokenizer,
             drafter_model=drafter_model,
             target_model=target_model,
