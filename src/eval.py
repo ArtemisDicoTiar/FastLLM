@@ -20,9 +20,8 @@ from FastLLM.models.base import Model
 from FastLLM.models.cnn import CNNTextSummarizationModel
 from FastLLM.models.lstm import LSTMTextSummarizationModel
 from FastLLM.models.ngrams import NgramModel
-from FastLLM.sampling.base_decoding import base_decoding
+from FastLLM.sampling._old_base_decoding import base_decoding
 from FastLLM.sampling.speculative_sampling import speculative_decoding
-from FastLLM.utils import distillation_loss
 from FastLLM.utils.benchmark import benchmark
 
 
@@ -74,7 +73,7 @@ class Evaluator(BaseModel, extra=Extra.allow):
         print("Target model loaded.")
 
     def _load_draft_model(self):
-        if self.use_ngram_drafter:
+        if self.use_ngram_drafter or self.drafter == "ngram":
             self.draft_model = NgramModel(n=self.ngram_n, vocab_size=self.tokenizer.vocab_size, resume=self.ckpt_path,
                                           device=f"cuda:{self.device}")
         elif self.drafter == "t5small":
@@ -92,7 +91,7 @@ class Evaluator(BaseModel, extra=Extra.allow):
         else:
             raise NotImplementedError(f"drafter {self.drafter} not implemented.")
 
-        if self.drafter != "ngram":
+        if self.drafter != "ngram" and not self.use_ngram_drafter:
             log = self.draft_model.load_state_dict(torch.load(self.ckpt_path))
             print(log)
             # self.draft_model = torch.load(self.ckpt_path, map_location=f"cuda:{self.device}")

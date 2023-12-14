@@ -93,18 +93,19 @@ Since NgramModel isn't a deep learning model, the process is different for the "
   ```
 
 ### Model Checkpoints
+*Local checkpoints...*
 * N-grams (1 to 4):
    * BaseLine (Built on dataset's labels): `/data/romsto/ngrams_ckpts/dataset/` 
    * Distilled (Built on pseudo dataset): `/data/romsto/ngrams_ckpts/pseudo_dataset/`
 * CNN
    * BaseLine: `/data/jaeseok/data/nlp/models/`
-   * Distilled: `/data/jaeseok/data/nlp/models/cnn_cnn-drafter-2023-12-09_04-19-43.pt` 
+   * Distilled: `/data/jaeseok/data/nlp/models/cnn_cnn-drafter-2023.pt` 
 * LSTM
    * BaseLine: `/data/jaeseok/data/nlp/models/`
-   * Distilled: `/data/jaeseok/data/nlp/models/lstm_lstm-drafter-2023-12-08_14-01-35.pt` 
+   * Distilled: `/data/jaeseok/data/nlp/models/lstm_lstm-drafter-2023.pt` 
 * T5-Small
-   * BaseLine: `/data/wppark/Workspace/FastLLM/t5small_baseline-drafter-2023-12-08_13-42-00.pt`
-   * Distilled: `/data/wppark/Workspace/FastLLM/t5small_kd50-drafter-2023-12-08_13-36-59.pt`
+   * BaseLine: `/data/wppark/Workspace/FastLLM/t5small_baseline-drafter-2023.pt`
+   * Distilled: `/data/wppark/Workspace/FastLLM/t5small_kd50-drafter-2023.pt`
 
 ### Model details
 
