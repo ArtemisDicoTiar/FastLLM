@@ -88,9 +88,4 @@ class CNNTextSummarizationModel(nn.Module):
             input_ids = input_ids.to(device)
             # Pass the input_embeddings through the model to get the probabilities of next tokens
             outputs = self(input_ids=input_ids[:, :0], decoder_input_ids=input_ids)
-            next_token_probs = outputs['probs']  # tensor representing the probabilities of next tokens
-
-            # Get the predicted token indices (assuming you want the most likely token)
-            _, predicted_indices = torch.max(next_token_probs, dim=-1)
-
-            return predicted_indices[0]
+            return outputs['logits']
