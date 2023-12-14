@@ -82,7 +82,7 @@ class CNNTextSummarizationModel(nn.Module):
         :return: next step tokens
         """
 
-        with no_grad():
+        with torch.no_grad():
             input_ids = input_ids.unsqueeze(0)
             device = next(self.parameters()).device
             input_ids = input_ids.to(device)
@@ -91,6 +91,6 @@ class CNNTextSummarizationModel(nn.Module):
             next_token_probs = outputs['probs']  # tensor representing the probabilities of next tokens
 
             # Get the predicted token indices (assuming you want the most likely token)
-            _, predicted_indices = max(next_token_probs, dim=-1)
+            _, predicted_indices = torch.max(next_token_probs, dim=-1)
 
             return predicted_indices[0]
