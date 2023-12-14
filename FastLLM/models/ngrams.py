@@ -14,7 +14,7 @@ class NgramModel(nn.Module):
         n: int,
         vocab_size: int,
         laplace_smoothing: float = 1.0,
-        device: str = "cuda",
+        device: str = "cpu",
         resume=None,
         *args,
         **kwargs,
@@ -32,11 +32,13 @@ class NgramModel(nn.Module):
         assert n >= 1, "n must be greater than 0"
 
         self.__name__ = "{}-gram model".format(n)
+        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.n = n
         self.is_unigram = n == 1
         self._fitted = False
         self.vocab_size = vocab_size
         self.laplace_smoothing = laplace_smoothing
+        self.unigram_logits = None
         if resume is not None:
             self.ngram_counts, self.total_counts = self._load(resume)
         else:
@@ -44,32 +46,25 @@ class NgramModel(nn.Module):
             self.total_counts = defaultdict(
                 lambda: self.vocab_size * self.laplace_smoothing
             )
-        self.sm = nn.Softmax(dim=0)
-        self.unigram_logits = None
-        self.unigram_probabilities = None
         self.backoff = (
             None
             if self.is_unigram
             else NgramModel(n - 1, vocab_size, laplace_smoothing, device, resume)
         )
-        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
 
 
-    def forward(self, input_ids: Tensor, input_tokens: Tensor = None) -> Tuple[Tensor, Tensor]:
+    def forward(self, input_ids: Tensor) -> Tuple[Tensor, Tensor]:
         """
         This function is used for model inference.
         :param input_ids: input_ids of the tokenized prefix
-        :return: logits and probabilities of the next tokens
+        :return: logits of the next tokens
         """
 
         assert self._fitted, "The model must be fitted before being used."
 
-        if input_tokens is not None:
-            input_ids = input_tokens["input_ids"][0]
-
         # Case 1: Uni-gram model
         if self.is_unigram:
-            return self.unigram_logits, self.unigram_probabilities
+            return self.unigram_logits
 
         logits = torch.zeros(self.vocab_size, device=self.device, dtype=torch.float32)
 
@@ -91,24 +86,19 @@ class NgramModel(nn.Module):
         )
         probabilities = (counts + self.laplace_smoothing) / self.total_counts[ngram]
         logits = torch.log(probabilities)
-        probabilities = self.sm(logits)
 
-        return logits, probabilities
+        return logits
 
 
-    def generate(self, input_tokens) -> Tuple[Tensor, Tensor]:
+    def generate(self, input_ids:Tensor) -> Tensor:
         """
         This function is used for model inference. (Same as a forward pass)
-        :param input_tokens: input_ids of the tokenized prefix
-        :return: logits and probabilities of the next tokens
+        :param input_ids: input_ids of the tokenized prefix
+        :return: logits of the next token
         """
-        
-        input_ids = input_tokens['input_ids']
-        input_ids = input_ids.to(self.device)
-        _, next_token_probs = self.forward(input_ids)
-        _, next_token_idx = torch.max(next_token_probs, dim=-1)
+        logits = self.forward(input_ids)
 
-        return next_token_idx, next_token_probs
+        return logits
 
 
     def fit(self, data: List[Dict[str, Tensor]]) -> None:
@@ -159,7 +149,6 @@ class NgramModel(nn.Module):
                 self.vocab_size * self.laplace_smoothing
             )
             self.unigram_logits = torch.log(probabilities)
-            self.unigram_probabilities = self.sm(self.unigram_logits)
 
         self._fitted = True
 
@@ -210,6 +199,17 @@ class NgramModel(nn.Module):
             for line in lines[current_line + 1 :]:
                 total_count, count = line.split("\t")
                 total_counts[int(total_count) if self.is_unigram else ast.literal_eval(total_count)] = float(count)
+
+        if self.is_unigram:
+            counts = torch.tensor(
+                [total_counts[i] for i in range(self.vocab_size)],
+                dtype=torch.float32,
+                device=self.device,
+            )
+            probabilities = (counts + self.laplace_smoothing) / (
+                self.vocab_size * self.laplace_smoothing
+            )
+            self.unigram_logits = torch.log(probabilities)
 
         self._fitted = True
 
