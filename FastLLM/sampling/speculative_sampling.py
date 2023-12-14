@@ -66,7 +66,8 @@ def speculative_decoding(
         temperature=1.,
         filter_thres=0.9,
         lenience=1.,
-        pad_id=0
+        pad_id=0,
+        force_to_target=False,
 ):
     """
     eq. algorithm 1 in paper https://arxiv.org/abs/2211.17192
@@ -91,24 +92,28 @@ def speculative_decoding(
         all_small_logits = []
         q_sampled_out = []
 
-        decoder_input_ids = torch.zeros((batch, 1), dtype=torch.long, device=prompt.device)
+        # copy for target
+        prev_out_length = out.shape[-1]
+        target_out = out.clone()
+
+        generated_seq = out[:, prompt_seq_len:]
+        zeros = torch.zeros((batch, 1), dtype=torch.long, device=prompt.device)
+        decoder_input_ids = torch.cat((zeros, generated_seq), dim=-1)
         for _ in range(gamma):
             small_logits = small_net(
                 out,
-                decoder_input_ids=decoder_input_ids if type(small_net) is T5ForConditionalGeneration else None,
-                # seq_start_pos=out.shape[-1] - seq_lens,
-                # cache=small_cache,
-                # return_cache=True
+                decoder_input_ids=decoder_input_ids,
             )
             small_logits = small_logits.logits if not isinstance(small_logits, dict) else small_logits['logits']
 
-            small_logits = small_logits[:, -1]
+            small_logits = small_logits[:, -1, :]
 
             small_logits = top_k(small_logits, thres=filter_thres)
             all_small_logits.append(small_logits)
 
             sample = gumbel_sample(small_logits, temperature=temperature, dim=-1)
             out = torch.cat((out, sample[..., None]), dim=-1)
+            decoder_input_ids = torch.cat((decoder_input_ids, sample[..., None]), dim=-1)
             seq_lens += 1
 
             q_sampled_out.append(rearrange(sample, 'b -> b 1 1'))
@@ -117,25 +122,34 @@ def speculative_decoding(
         small_logits = torch.stack(all_small_logits, dim=-2)
 
         # verify with larger network
+        target_logits = torch.tensor([], device=device)
 
-        logits = net(
-            out,
-            decoder_input_ids=decoder_input_ids if type(net) is T5ForConditionalGeneration else None,
-            # seq_start_pos=out.shape[-1] - seq_lens,
-            # cache=cache,
-            # return_cache=True
-        )
-        logits = logits.logits if not isinstance(logits, dict) else logits['logits']
+        target_decoder_input_ids = decoder_input_ids.clone()
+        for i in range(gamma + 1):
+            if i != gamma:
+                decoder_in = target_decoder_input_ids[:, :-gamma + i]
+            else:
+                decoder_in = target_decoder_input_ids
+            logits = net(
+                target_out,
+                decoder_input_ids=decoder_in,
+            )
+            logits = logits.logits if not isinstance(logits, dict) else logits['logits']
 
-        logits = logits[..., -(gamma + 1):, :]
-        logits = top_k(logits, thres=filter_thres)
+            logits = logits[..., -1:, :]
+            logits = top_k(logits, thres=filter_thres)
+
+            target_logits = torch.cat((target_logits, logits), dim=-2)
+
+            # sample = gumbel_sample(logits, temperature=temperature, dim=-1)
+            # target_out = torch.cat((target_out, sample[..., None]), dim=-1)
+            target_out = torch.cat((target_out, decoder_in[..., -1:]), dim=-1)
 
         # prob and prob of small model (p(x) and q(x) in algorithm 1)
-
-        prob = safe_div(logits, temperature).softmax(dim=-1)
+        prob = safe_div(target_logits, temperature).softmax(dim=-1)
         small_prob = safe_div(small_logits, temperature).softmax(dim=-1)
 
-        p, prob_next = prob[:, :-1], prob[:, -1]
+        p, prob_next = prob[:, :-1, :], prob[:, -1, :]
 
         p = p.gather(-1, q_sampled_out)
         q = small_prob.gather(-1, q_sampled_out) * lenience
@@ -154,20 +168,24 @@ def speculative_decoding(
 
         accepted = rearrange(accepted, 'b -> b 1')
         accepted.clamp_(max=gamma - 1)
-        adjusted_prob = F.relu(prob[batch_range, accepted] - small_prob[batch_range, accepted])
-        adjusted_prob = adjusted_prob / adjusted_prob.sum(dim=-1, keepdim=True)
-        adjusted_prob = rearrange(adjusted_prob, 'b 1 d -> b d')
+        if not force_to_target:
+            # @@ this is implemented as same as paper
+            adjusted_prob = F.relu(prob[batch_range, accepted] - small_prob[batch_range, accepted])
+            adjusted_prob = adjusted_prob / adjusted_prob.sum(dim=-1, keepdim=True)
+            adjusted_prob = rearrange(adjusted_prob, 'b 1 d -> b d')
 
-        prob_next = torch.where(
-            rearrange(has_rejected, '... -> ... 1'),
-            adjusted_prob,
-            prob_next
-        )
+            prob_next = torch.where(
+                rearrange(has_rejected, '... -> ... 1'),
+                adjusted_prob,
+                prob_next
+            )
+        else:
+            prob_next = prob[batch_range, accepted, :]
 
         # do a bunch of slicing and align everything to the right, including kv caches
-
+        # @@ rollback rejected tokens
         max_num_rejected = num_rejected.amax()
-        seq_arange = torch.arange(out.shape[-1], device=device, dtype=torch.long)
+        seq_arange = torch.arange(prev_out_length, device=device, dtype=torch.long)
         seq_offset_indices = seq_arange + (max_num_rejected - num_rejected)[..., None]
 
         seq_lens -= num_rejected
@@ -177,33 +195,23 @@ def speculative_decoding(
             out = F.pad(out, (0, max_num_rejected), value=pad_id)
             out = out[batch_range, seq_offset_indices]
 
-            # cache = tuple(F.pad(t, (0, 0, 0, max_num_rejected), value=pad_id) for t in cache)
-            # small_cache = tuple(F.pad(t, (0, 0, 0, max_num_rejected), value=pad_id) for t in small_cache)
-            #
-            # cache = tuple(rearrange(t, 'b ... n d -> b n ... d') for t in cache)
-            # small_cache = tuple(rearrange(t, 'b ... n d -> b n ... d') for t in small_cache)
-            #
-            # cache = tuple(t[batch_range, seq_offset_indices] for t in cache)
-            # small_cache = tuple(t[batch_range, seq_offset_indices] for t in small_cache)
-            #
-            # cache = tuple(rearrange(t, 'b n ... d -> b ... n d') for t in cache)
-            # small_cache = tuple(rearrange(t, 'b n ... d -> b ... n d') for t in small_cache)
-
             if out.shape[-1] > max_seq_len:
                 left_index = out.shape[-1] - max_seq_len
                 out = out[:, left_index:]
-                # cache = tuple(t[..., left_index:, :] for t in cache)
-                # small_cache = tuple(t[..., left_index:, :] for t in small_cache)
+        # else:
+        #     out = out[batch_range, :max_seq_len]
 
         # sample the additional token, one of the tricks in the paper to better bound the worst case
-
-        next_token = torch.multinomial(prob_next, 1)
+        if not force_to_target:
+            # @@ this is implemented as same as paper
+            next_token = torch.multinomial(prob_next, 1)
+        else:
+            next_token = prob_next.argmax(dim=-1)
 
         out = torch.cat((out, next_token), dim=-1)
         seq_lens += 1
 
     # now left align
-
     num_pad_left = out.shape[-1] - seq_lens
     max_pad_left = num_pad_left.amax()
     out = F.pad(out, (0, max_pad_left), value=pad_id)
