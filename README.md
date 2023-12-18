@@ -30,9 +30,8 @@ For each models, we will compare the $\alpha = E(\beta)$ paramater (with $\beta$
 The *baseline* is a model fine-tuned on the dataset, while the *distilled model* is a model after Knowledge Distillation.
 
 __Distillation Process__: We use the Kullback-Leibler Divergence loss function.
-$\begin{equation}
-L_{KD} = D_{KL}( \frac{\log(\text{softmax}(input\_logits / T))}{\text{softmax}(target\_logits / T)})
-\end{equation}$
+
+$L_{KD} = D_{KL}( \log(\text{softmax}(input_{logits} / T)) / \text{softmax}(target_{logits} / T))$
 
 ### Target Task and Dataset
 Summarization, [CNN/DailyMail](https://huggingface.co/datasets/cnn_dailymail)
